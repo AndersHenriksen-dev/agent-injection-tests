@@ -1,0 +1,64 @@
+[project]
+name = "injectiontests"
+version = "0.1.0"
+description = "Tests of whether a tool-using Claude agent can be hijacked by instructions hidden in emails, documents and web pages, and which guards stop it"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Anders Henriksen", email = "anhenr.dev@gmail.com" }]
+dependencies = [
+    "anthropic>=0.75",
+    "python-dotenv>=1.0",
+    "pydantic>=2.9",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+injectiontests = "injectiontests.cli:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+# E/F/I/W: pyflakes/pycodestyle/import-order baseline.
+# ANN: every function has input/output type annotations (mypy checks they're correct).
+# D: Google-convention docstrings on modules, classes and functions (see .claude/reference/python-style.md).
+# B/SIM/C4/UP: bugbear, simplify, comprehensions, pyupgrade; catches non-idiomatic/needlessly complex code.
+# COM812: trailing comma required on multi-line calls/literals, so exploded arguments stay consistent.
+# RUF: ruff's own additional checks.
+select = ["E", "F", "I", "W", "ANN", "D", "B", "SIM", "C4", "UP", "COM812", "RUF"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Test names/classes already say what they cover; module docstrings are still required.
+"tests/**" = ["D101", "D102", "D103"]
+
+[tool.mypy]
+python_version = "3.12"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
