@@ -69,7 +69,7 @@ def cmd_worst_case(cases: Cases, args: argparse.Namespace) -> int:
     text = f"{table(summarize(verdicts), with_model_columns=False)}\n\n{by_goal(cases, verdicts)}"
     print(text)
     if args.write:
-        (EVALS_DIR / "WORST_CASE.md").write_text(f"{_WORST_CASE_INTRO}\n{text}\n", encoding="utf-8")
+        (EVALS_DIR / "WORST_CASE.md").write_text(f"{_WORST_CASE_INTRO}\n{text}\n", encoding="utf-8", newline="\n")
     found = worst_case_problems(cases, results)
     for problem in found:
         print(f"PROBLEM {problem}", file=sys.stderr)
@@ -107,6 +107,7 @@ def cmd_eval(cases: Cases, args: argparse.Namespace) -> int:
     (EVALS_DIR / "RESULTS.md").write_text(
         f"# Results\n\n{description}, {runs} runs on {stamp[:8]}.\n\n{text}\n",
         encoding="utf-8",
+        newline="\n",
     )
     print(f"\n{text}\n\nTranscripts in {RESULTS_DIR / stamp}")
     return 0
