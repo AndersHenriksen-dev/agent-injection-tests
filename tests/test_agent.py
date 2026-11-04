@@ -111,6 +111,7 @@ class TestClaudeModel:
         model.respond(system="Be careful.", tools=[], messages=[{"role": "user", "content": "hi"}])
         assert sent["model"] == "claude-opus-5-5"
         assert sent["system"][0]["cache_control"] == {"type": "ephemeral"}
+        assert sent["cache_control"] == {"type": "ephemeral"}
         assert sent["output_config"] == {"effort": "medium"}
         assert not {"temperature", "top_p", "top_k", "thinking", "tool_choice"} & set(sent)
 

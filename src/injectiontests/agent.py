@@ -34,11 +34,20 @@ class Model(Protocol):
 class ClaudeModel:
     """A Claude model through the Messages API."""
 
-    def __init__(self, client: anthropic.Anthropic, name: str, effort: Effort) -> None:
-        """Use `client` to call model `name` at `effort`."""
+    def __init__(self, client: anthropic.Anthropic, name: str, effort: Effort, cache_conversation: bool = True) -> None:
+        """Use `client` to call model `name` at `effort`.
+
+        Args:
+            client: The API client.
+            name: The model id.
+            effort: The effort level.
+            cache_conversation: Cache the conversation as it grows. Turn it off for one-off prompts, which never read
+                that cache back and would only pay to write it.
+        """
         self.client = client
         self.name = name
         self.effort: Effort = effort
+        self.cache_conversation = cache_conversation
 
     def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
         """One Messages API call. The tools and system prompt are cached, since they repeat every turn."""
@@ -49,6 +58,7 @@ class ClaudeModel:
             tools=tools,
             messages=messages,
             output_config={"effort": self.effort},
+            cache_control={"type": "ephemeral"} if self.cache_conversation else anthropic.omit,
         )
 
 
@@ -106,14 +116,16 @@ def cost_usd(model: str, usage: Usage) -> float:
     return total / 1_000_000
 
 
-def _add_usage(total: Usage, usage: ApiUsage) -> None:
+def add_usage(total: Usage, usage: ApiUsage) -> None:
+    """Add one response's tokens to a running total."""
     total.input_tokens += usage.input_tokens
     total.output_tokens += usage.output_tokens
     total.cache_read_tokens += usage.cache_read_input_tokens or 0
     total.cache_write_tokens += usage.cache_creation_input_tokens or 0
 
 
-def _final_text(message: Message) -> str:
+def final_text(message: Message) -> str:
+    """The text of a message, without its thinking and tool calls."""
     return "\n".join(block.text for block in message.content if block.type == "text").strip()
 
 
@@ -156,15 +168,16 @@ def run_turns(
     tools: list[ToolParam],
     prompt: str,
     handle: Callable[[ToolUseBlock], tuple[ToolCall, ToolResultBlockParam]],
+    max_turns: int = MAX_TURNS,
 ) -> None:
     """The loop itself: ask the model, hand each tool call to `handle`, and record everything in `transcript`."""
     messages: list[MessageParam] = [{"role": "user", "content": prompt}]
     started = time.perf_counter()
 
-    for _ in range(MAX_TURNS):
+    for _ in range(max_turns):
         response = model.respond(system=system, tools=tools, messages=messages)
         transcript.turns += 1
-        _add_usage(transcript.usage, response.usage)
+        add_usage(transcript.usage, response.usage)
         if response.stop_reason == "refusal":
             transcript.refused = True
             break
@@ -172,7 +185,7 @@ def run_turns(
         messages.append({"role": "assistant", "content": response.content})
         uses = [block for block in response.content if block.type == "tool_use"]
         if not uses:
-            transcript.final_answer = _final_text(response)
+            transcript.final_answer = final_text(response)
             break
         results: list[ToolResultBlockParam] = []
         for block in uses:

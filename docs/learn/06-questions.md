@@ -28,6 +28,9 @@ Short answers below each question; the other files have the details.
 24. **Why is `Bash(curl *)` in a deny list not a fix for exfiltration?** It matches the command text, so `/usr/bin/curl` and `sh -c 'curl ...'` get past it. The network needs the sandbox.
 25. **Why does a scan simulate every tool?** The test is to see whether the model obeys an attacker, so a run that works must do no harm. It also keeps your files away from the API.
 26. **What does "not delivered" mean, and why is it not "resisted"?** The agent never read anything, so it never saw the attack. Counting that as resisting would make a lazy agent look safe.
+27. **Why does a small model write the simulated tool output?** With fixed text the agent could not do its job, so a clean result only showed a stuck agent ignoring an attack. A test is only as strong as the conditions it creates.
+28. **Why can the emulator not be hijacked by the attack it helps test?** It never sees the payload. The sandbox adds the payload after the emulator has written, and calls to an attacker's address never reach it.
+29. **Why is a run that ran out of turns not "resisted"?** It was cut off before it answered, so it could still have obeyed.
 
 ## Exercises
 

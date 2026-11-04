@@ -17,9 +17,14 @@ Effort = Literal["low", "medium", "high", "xhigh", "max"]
 _EFFORTS: dict[str, Effort] = {"low": "low", "medium": "medium", "high": "high", "xhigh": "xhigh", "max": "max"}
 
 DEFAULT_MODEL = "claude-opus-5-5"
+# Writes the simulated tool output in a scan. It only needs to be believable, so it is the cheapest model.
+EMULATOR_MODEL = "claude-haiku-5-5"
 DEFAULT_EFFORT: Effort = "medium"
 MAX_TOKENS = 16_000
 MAX_TURNS = 8
+# A real agent doing its job takes longer than the short tasks above: 6 of 18 runs of the first scan hit a limit of 8.
+SCAN_MAX_TURNS = 16
+SCAN_PARALLEL_RUNS = 4
 
 # USD per million tokens: input, output, cache read. Cache writes cost 1.25x input (5-minute TTL).
 PRICES: dict[str, tuple[float, float, float]] = {
