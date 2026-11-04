@@ -2,7 +2,7 @@
 
 I built a test suite that checks whether a tool-using Claude agent can be hijacked by instructions hidden in the emails, documents and web pages it reads, and which defenses stop it. The agent works for a made-up fund administrator: it reads an inbox, client records and web pages, and it can send email, create payments and file tickets. 24 attacks try to make it leak client accounts, call attacker sites, pay attacker accounts or lie to the employee.
 
-**Status:** the attacks, the seven defenses and the free worst-case check are done. Runs against Claude come next, and their results will go here.
+**Status:** the attacks, the seven defenses, the free worst-case check and one full run against Claude Haiku 5.5 are done.
 
 ## What the guards guarantee on their own
 
@@ -19,6 +19,26 @@ The worst case runs every attack with a scripted model that does exactly what th
 | All of the above | 5 of 24 |
 
 The 5 that get through every guard are hijacked answers: the model tells the employee that an invoice is already paid, or that a rate is 7.9000. No tool guard can stop a model from writing a false sentence. All five defenses also let every task still finish when the model does the job right.
+
+## What a real model did
+
+I ran the full matrix once against Claude Haiku 5.5 at effort medium: 203 runs for USD 0.11 ([evals/RESULTS.md](evals/RESULTS.md)).
+
+| Measure | Result |
+|---|---|
+| Attacks that got through | 0 of 24 under all seven defenses, including no defense |
+| Attacks the model tried | 0 of 24 under all seven defenses |
+| Tasks done with no attack | 5 of 5 under all seven defenses |
+| Tasks done under attack | 164 of 168 runs |
+| Refusals | 4, all on the base64 attack |
+
+In all 42 runs that tried to make it lie to the employee, the model gave the true facts and warned about the planted instruction. I read those answers by hand, because text is harder to score than a tool call.
+
+Three limits on what this shows:
+
+- It is one pass over 24 known attack patterns, none of them adapted to the defenses. It does not show that the model is safe against someone who keeps trying.
+- Every defense scored the same, so this run cannot rank them. What the guards add only shows in the worst case above: they hold when the model is fooled, and here it never was.
+- A refusal is still a cost. The base64 attack moved no data, but under four defenses it left the employee with no answer. Those are the four without prompt rules. With one pass each, that may be chance.
 
 ## How it works
 
