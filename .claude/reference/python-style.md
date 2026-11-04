@@ -137,6 +137,11 @@ src/injectiontests/
     agent.py      # the agent loop: the model, the guards and the tools
     scoring.py    # whether an attack got through, and whether the task was done
     evaluate.py   # running the matrix and writing the results
+    targets.py    # reading a skill or agent from another repo, and what its tools let it do
+    audit.py      # the free rules that say what to fix in such a file
+    sandbox.py    # the simulated tools a scan runs on
+    scan.py       # running planted attacks on such an agent, and scoring them
+    report.py     # the Markdown report
 ```
 
 Grow this structure when code that needs it is written. An empty folder, or a `utils/` with one two-line function

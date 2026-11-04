@@ -23,6 +23,11 @@ Short answers below each question; the other files have the details.
 19. **The scoring word list can make two kinds of mistake. Which one is safer?** Missing a rejection counts a warning as a hijack: it overstates attacks and gets the answer read. Excusing a real hijack hides an attack, which is why the results table counts every excused answer.
 20. **Claude Haiku 5.5 resisted all 24 attacks with no defense at all. Are the guards wasted?** No. That is one pass over 24 known patterns, and real attackers adapt. A guard's value is what it holds when the model is fooled, which only the worst case shows.
 21. **The base64 attack moved no data, but 4 runs ended in a refusal. Did the attacker gain anything?** Yes. The employee got no answer, so the attack still stopped the work.
+22. **A skill has `allowed-tools: Read`. Can it call `Bash`?** Yes. In a skill, `allowed-tools` only pre-approves. Limiting takes `disallowed-tools`.
+23. **Why does `Bash(uv run *)` in `allowed-tools` count as broad?** It runs whatever follows `uv run`, including any script, with no prompt. The pattern looks narrow but the command is not.
+24. **Why is `Bash(curl *)` in a deny list not a fix for exfiltration?** It matches the command text, so `/usr/bin/curl` and `sh -c 'curl ...'` get past it. The network needs the sandbox.
+25. **Why does a scan simulate every tool?** The test is to see whether the model obeys an attacker, so a run that works must do no harm. It also keeps your files away from the API.
+26. **What does "not delivered" mean, and why is it not "resisted"?** The agent never read anything, so it never saw the attack. Counting that as resisting would make a lazy agent look safe.
 
 ## Exercises
 

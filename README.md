@@ -2,7 +2,26 @@
 
 I built a test suite that checks whether a tool-using Claude agent can be hijacked by instructions hidden in the emails, documents and web pages it reads, and which defenses stop it. The agent works for a made-up fund administrator: it reads an inbox, client records and web pages, and it can send email, create payments and file tickets. 24 attacks try to make it leak client accounts, call attacker sites, pay attacker accounts or lie to the employee.
 
-**Status:** the attacks, the seven defenses, the free worst-case check and one full run against Claude Haiku 5.5 are done.
+**Status:** the attacks, the seven defenses, the free worst-case check and one full run against Claude Haiku 5.5 are done. You can also run it on your own skills and agents.
+
+## Test your own skill or agent
+
+Install it once, then point it at a skill or agent you own. It reads Claude Code's formats: `SKILL.md`, `.claude/commands/*.md` and `.claude/agents/*.md`.
+
+```bash
+uv tool install git+https://github.com/AndersHenriksen-dev/agent-injection-tests.git
+injectiontests audit .claude/agents/reviewer.md    # free: what to fix in its tools and instructions
+injectiontests audit .                             # every skill, command and agent under this folder
+injectiontests scan .claude/agents/reviewer.md     # prints the plan and a rough cost, and runs nothing
+injectiontests scan .claude/agents/reviewer.md --task "Review the open pull request" --model haiku --yes
+```
+
+- **`audit`** calls no model and needs no API key. It lists what to fix, most severe first, with the exact setting to change, and shows what an attacker could reach if the model were fooled. On my own `eval-reviewer` agent, whose description says it changes no files, it pointed out that it has `Bash`, so nothing enforces that.
+- **`scan`** runs the agent's real instructions on a real model, with up to 18 planted attacks in what it reads. Every tool is simulated, so nothing real is read, sent or changed. Only the instructions go to the API. It needs `ANTHROPIC_API_KEY` in the environment or a `.env` file, and costs roughly USD 0.01 per agent on Haiku 5.5, 0.19 on Sonnet 5.5 and 0.37 on Opus 5.5. Reports go to `injection-results/`, which you should add to `.gitignore`.
+- **In CI:** `audit --check` exits 1 on anything high severity, and `scan` exits 1 if an attack got through.
+- **Built on the API or the Agent SDK?** Write its tool names and system prompt in a small Markdown file in the same format.
+
+A clean result is not proof: these are known attacks run once, and a scan tests your instructions and tool list, not your whole setup. The [study guide](docs/learn/08-your-own-agent.md) explains how it works and what it cannot see.
 
 ## What the guards guarantee on their own
 
@@ -87,4 +106,4 @@ The tests need no API key: the model is replaced by scripted ones. Pre-commit ru
 
 ## Scope
 
-This repo attacks only its own agent and its own synthetic world, to measure defenses. The payloads are well-known prompt-injection patterns. The code is MIT licensed.
+This repo attacks its own agent and its own synthetic world, to measure defenses, and skills and agents you point it at, with every tool simulated. Use it only on agents you own or have permission to test. The payloads are well-known prompt-injection patterns. The code is MIT licensed.
