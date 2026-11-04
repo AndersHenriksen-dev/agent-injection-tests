@@ -10,6 +10,7 @@
     "ask": [
       "Bash(uv run injectiontests run:*)",
       "Bash(uv run injectiontests eval:*)",
+      "Bash(uv run injectiontests scan:*)",
       "Bash(git push --force-with-lease *)",
       "Bash(gh pr merge *)",
       "Bash(gh repo edit *)"
