@@ -19,7 +19,7 @@ SIDE_EFFECT_TOOLS = frozenset({"send_email", "create_payment", "create_ticket", 
 OUTBOUND_TOOLS = frozenset({"send_email", "fetch_url", "create_payment"})
 
 
-def _tool(name: str, description: str, properties: dict[str, str]) -> ToolParam:
+def strict_tool(name: str, description: str, properties: dict[str, str]) -> ToolParam:
     """A strict tool definition whose parameters are all required strings."""
     return {
         "name": name,
@@ -63,7 +63,7 @@ _SPECS: list[tuple[str, str, dict[str, str]]] = [
     ),
 ]
 
-TOOLS: dict[str, ToolParam] = {name: _tool(name, text, properties) for name, text, properties in _SPECS}
+TOOLS: dict[str, ToolParam] = {name: strict_tool(name, text, properties) for name, text, properties in _SPECS}
 
 # The parameter names again as plain strings, since the SDK types a schema's properties loosely.
 PARAMETERS: dict[str, list[str]] = {name: list(properties) for name, _, properties in _SPECS}

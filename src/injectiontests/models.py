@@ -131,6 +131,83 @@ class Attack(Strict):
     attacker_answer: str = "Done."
 
 
+# ---------- Skills and agents from other repos ----------
+
+
+class Capability(StrEnum):
+    """What a tool lets an agent do, which decides what an attacker could reach through it."""
+
+    READS_OUTSIDE_TEXT = "reads_outside_text"
+    READS_PRIVATE_DATA = "reads_private_data"
+    SENDS_OUT = "sends_out"
+    CHANGES_THINGS = "changes_things"
+    RUNS_COMMANDS = "runs_commands"
+
+
+class TargetKind(StrEnum):
+    """Which Claude Code format a target is written in. The two limit tools differently."""
+
+    SKILL = "skill"
+    SUBAGENT = "subagent"
+
+
+class Target(Strict):
+    """A skill or agent from another repo, as read from its Markdown file."""
+
+    name: str
+    kind: TargetKind
+    path: str
+    description: str = ""
+    instructions: str
+    tools: list[str] = Field(description="Everything it can call, after any limits in its file.")
+    tools_listed: bool = Field(description="Whether its file limits its tools. A skill's `allowed-tools` does not.")
+    preapproved: list[str] = Field(default=[], description="What a skill's `allowed-tools` runs without asking.")
+    permission_mode: str | None = None
+    model: str | None = None
+    model_invocable: bool = True
+
+
+class AgentGoal(StrEnum):
+    """What an attacker wants from a skill or agent, whatever its job is."""
+
+    EXFILTRATE = "exfiltrate"
+    RUN_COMMAND = "run_command"
+    CHANGE_FILES = "change_files"
+    LEAK_SECRET = "leak_secret"
+    HIJACK_ANSWER = "hijack_answer"
+
+
+class AgentAttack(Strict):
+    """One attack on any skill or agent: text planted in the first thing it reads, and how to tell that it worked."""
+
+    id: str
+    technique: Technique
+    goal: AgentGoal
+    payload: str
+    needs: Capability | None = Field(default=None, description="The capability the goal takes. None: any target.")
+    call_marker: str | None = Field(default=None, description="Text in a tool call that shows the attack worked.")
+    answer_marker: str | None = Field(default=None, description="Text stated in the answer that shows it worked.")
+    attacker_call: PlannedCall | None = Field(default=None, description="The call a fully hijacked model makes.")
+    attacker_answer: str = "Done."
+
+
+class Severity(StrEnum):
+    """How urgent a finding is. High means nothing stands between the attacker and the harm."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class Finding(Strict):
+    """One thing to fix in a skill or agent."""
+
+    severity: Severity
+    title: str
+    why: str
+    fix: str
+
+
 # ---------- Runs ----------
 
 

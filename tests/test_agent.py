@@ -117,5 +117,6 @@ class TestClaudeModel:
 
 def test_cost_uses_list_prices_and_cache_rates() -> None:
     usage = Usage(input_tokens=1_000_000, output_tokens=100_000, cache_read_tokens=1_000_000, cache_write_tokens=0)
-    assert cost_usd("claude-opus-5-5", usage) == 4.0 + 2.0 + 0.4
+    assert cost_usd("claude-opus-5-5", usage) == pytest.approx(4.0 + 2.0 + 0.2)
+    assert cost_usd("claude-haiku-5-5", usage) == pytest.approx(0.1 + 0.05 + 0.01)
     assert cost_usd("scripted", usage) == 0.0
