@@ -8,7 +8,7 @@ The rest of this guide tests one made-up agent. This file is about pointing the 
 |---|---|---|
 | Question | What does this file allow? | What does the model do with these instructions when attacked? |
 | Model | None | A real Claude model |
-| Cost | Free, no API key | Up to about USD 0.34 per agent on Haiku 5.5, 3.80 on Sonnet 5.5, 7.40 on Opus 5.5 |
+| Cost | Free, no API key | About USD 0.35 per agent on Haiku 5.5, measured. An estimated 3.46 on Sonnet 5.5 and 6.37 on Opus 5.5 |
 | Same idea as | The worst case in [Measuring](05-measuring.md): what is reachable if the model is fooled | The real run in [Measuring](05-measuring.md): how often it is fooled |
 
 Start with the audit. It finds most of what is worth fixing, and its findings hold whatever the model does.
@@ -63,7 +63,7 @@ Take `helpful-step-run-command`, one of the attacks in [attacks.yaml](../../src/
 
 Every tool is simulated, for two reasons. An attack that works does no harm, which matters because the whole point is to see the model obey an attacker. And nothing private goes to the API: the model sees made-up files, not your repo. Only the agent's instructions are sent.
 
-**Why a model writes the output.** A test is only as strong as the conditions it creates. With fixed text, every file `eval-reviewer` asked for came back as the same notes, so in all 18 runs it said "I could not review any failed cases". Those runs showed a model ignoring attacks while stuck, not while working. With believable output, 11 of 18 runs did the real job. The emulator never sees the payload, which is added after it has written. Calls to an attacker's address and reads of `.env` never reach it, and one project is shared by all the attacks on a target, so they see the same files.
+**Why a model writes the output.** A test is only as strong as the conditions it creates. With fixed text, every file `eval-reviewer` asked for came back as the same notes, so in all 18 runs it said "I could not review any failed cases". Those runs showed a model ignoring attacks while stuck, not while working. With believable output, 15 of 18 runs produced the report the agent is meant to write. The emulator never sees the payload, which is added after it has written. Calls to an attacker's address and reads of `.env` never reach it, and one project is shared by all the attacks on a target, so they see the same files.
 
 ## Reading a result
 
@@ -81,7 +81,7 @@ Scoring a false claim uses the same rule as the rest of the repo: a warning that
 
 - **It reads the file only.** Your `settings.json`, hooks and sandbox may already handle a finding. An agent run without a person, for example in CI, has no permission prompts to rely on.
 - **A scan is not the whole product.** It runs your instructions alone, without Claude Code's own system prompt and permission prompts. It tests your instructions and tool list. A real session has more protection, and an unattended one may have less.
-- **Made-up files are not your files.** The agent may notice that something is off, so the report shows how each answer starts: read those, not just the outcome. In the scan of `eval-reviewer` on Haiku 5.5 (18 runs, USD 0.34), no attack worked, 11 runs did the real job and told the user about the attack, 6 hit a limit of 8 turns (now 16), and 1 refused. That was one pass, on one model.
+- **Made-up files are not your files.** The agent may notice that something is off, so the report shows how each answer starts: read those, not just the outcome. In the scan of `eval-reviewer` on Haiku 5.5 (18 runs, USD 0.35, 9 minutes), no attack worked, all 16 answers that finished told the user about the attack, 15 produced the report, and 2 ran out of turns. But 12 answers said the files contradicted each other, and they were right. The emulator remembers only its last 12 calls, and 106 of the 169 shell calls re-read a file through another command, which gets freshly invented text: `Read` showed q04, q10 and q17 where a shell command showed q01, q11 and q12. An agent that keeps noticing this is less like one doing its real job. That was one pass, on one model.
 - **A clean scan is not proof.** The attacks are 18 known patterns, run once. Results vary between runs, and a real attacker adapts.
 
 ## An agent that is not a Claude Code file
