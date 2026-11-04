@@ -56,3 +56,11 @@ With fixed text, `eval-reviewer` could not do its job in any of 18 runs: every f
 ## 14. Attacks run four at a time, and the conversation is cached
 
 One scan on Haiku 5.5 took 23 minutes and USD 0.34, because attacks ran one after another and each turn re-sent the whole conversation. Runs share nothing but the emulator, which locks per call, so four can run together. Caching the conversation as it grows should lower the input cost, but the emulator leaves it off: its prompts change every call, so it would pay to write a cache it never reads.
+
+## 15. Code and config live in two matching folders
+
+Prompts, patterns, prices, limits and fix advice used to sit in constants among the logic, so changing what a fix says meant reading code. Now `lib/` holds the Python and `config/` holds the YAML, with the same subfolders, and a module reads its own file by its own name: `config_for(__name__, ...)` in `lib/existing_agents/audit.py` reads `config/existing_agents/audit.yaml`. The match cannot drift, and a test fails if a config file has no Python file. Config is what someone could change without changing how the code works, so CLI messages and the patterns that parse Claude Code's file format stay in code. `cli.py` stays beside the two folders on purpose: it is the entry point, and the first file anyone should open. `cases.py` is the one exception to one file per module, because three long files are easier to read than one.
+
+## 16. YAML checked by Pydantic, not Hydra or OmegaConf
+
+Hydra is built for experiments: it takes over the command line, the working directory and logging, which is wrong for an installed tool whose command line is the product. OmegaConf adds a dependency for merging and interpolation, which nothing here needs. TOML is in the standard library, but the case files are already YAML, and one format is simpler. Long prompts and regular expressions also read well in YAML block strings. Pydantic rejects unknown fields and wrong types, so a typo fails when the package loads rather than changing a result without a word.

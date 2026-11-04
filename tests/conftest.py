@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from injectiontests.cases import Cases, load
+from injectiontests.lib.fund_agent.cases import Cases, load
 
 
 @pytest.fixture(scope="session")

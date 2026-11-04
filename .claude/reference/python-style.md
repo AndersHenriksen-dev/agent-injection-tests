@@ -52,7 +52,7 @@ If you use it, a comment says why nothing narrower works.
 Rules of thumb:
 
 - Validate and parse untyped data (YAML case files, JSON transcripts, CLI arguments, environment variables) at the
-  boundary into a typed model. This repo uses Pydantic for that (see `src/injectiontests/models.py`) and passes the
+  boundary into a typed model. This repo uses Pydantic for that (see `src/injectiontests/lib/shared/models.py`) and passes the
   typed model inward. Do not let `dict[str, Any]` travel past the function that parsed it.
 - Prefer precise types over `object` or `Any`: `list[ToolCall]` not `list`, `Literal["low", "medium", "high"]` not
   `str` for a closed set of values.
@@ -126,23 +126,21 @@ structure, split it by what the code *does*, not by type. The current layout:
 
 ```
 src/injectiontests/
-    __init__.py   # package docstring
-    cli.py        # entry point: thin, parses arguments, delegates at once
-    config.py     # model settings, prices, paths
-    models.py     # Pydantic models: the data contracts that cross a boundary (case files, transcripts, results)
-    cases.py      # loading and checking the world, task and attack files
-    world.py      # the synthetic company and the tools that read and change it
-    guards.py     # least privilege, approval and egress guards
-    defenses.py   # the defense configurations that are compared
-    agent.py      # the agent loop: the model, the guards and the tools
-    scoring.py    # whether an attack got through, and whether the task was done
-    evaluate.py   # running the matrix and writing the results
-    targets.py    # reading a skill or agent from another repo, and what its tools let it do
-    audit.py      # the free rules that say what to fix in such a file
-    sandbox.py    # the simulated tools a scan runs on
-    scan.py       # running planted attacks on such an agent, and scoring them
-    report.py     # the Markdown report
+    __init__.py   # the public API: what someone using this from Python needs
+    cli.py        # the entry point: thin, parses arguments, delegates at once
+    lib/          # all other Python
+        existing_agents/   # testing a skill or agent from another repo
+            commands.py    # the commands, first thing to read in the folder
+            targets.py, audit.py, attacks.py, sandbox.py, scan.py, report.py
+        fund_agent/        # this repo's own study on a made-up fund administrator
+            commands.py    # the commands, first thing to read in the folder
+            cases.py, world.py, guards.py, defenses.py, agent.py, scoring.py, evaluate.py
+        shared/            # what both use: never imports either of them
+            loop.py, models.py, settings.py, claims.py
+    config/       # the same subfolders as lib/
 ```
+
+**Code and config are separate, and mirror each other.** Prompts, patterns, prices, limits and fix advice go in a YAML file at the same path under `config/`: `lib/existing_agents/audit.py` reads `config/existing_agents/audit.yaml`. A module reads its own file with `config_for(__name__, Shape)`, where `Shape` is a Pydantic model next to the code that uses it, so a typo fails when the package loads. Config is what someone could change without changing how the code works. CLI messages and the patterns that parse a file format stay in code. A module that needs no config has no file.
 
 Grow this structure when code that needs it is written. An empty folder, or a `utils/` with one two-line function
 nobody calls, is worse than no folder.
