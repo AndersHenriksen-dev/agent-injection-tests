@@ -1,4 +1,4 @@
-"""The paid eval command: its plan, saving as it goes, and what it does when the API stops it."""
+"""The paid eval command: its plan, saving as it goes, what it does when the API stops it, and rescoring its runs."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from anthropic.types import Message, MessageParam, ToolParam
 from injectiontests import cli
 from injectiontests.agent import ScriptedModel
 from injectiontests.cases import Cases
+from injectiontests.evaluate import read_results
 
 
 class FailsAfter:
@@ -96,3 +97,61 @@ class TestEval:
         results = (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
         assert "test model, 203 runs" in results
         assert "USD 0.00 in total" in results
+
+
+class TestRescore:
+    def _saved_path(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        **eval_args: object,
+    ) -> Path:
+        _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
+        cli.cmd_eval(cases, _args(**eval_args))
+        return next((tmp_path / "results").glob("*/runs.jsonl"))
+
+    def test_saved_verdicts_are_ignored(self, cases: Cases, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        path = self._saved_path(cases, monkeypatch, tmp_path, defense=["none"], no_tasks=True)
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        rows[0]["verdict"]["succeeded"] = True
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8", newline="\n")
+        results = read_results(path, cases)
+        assert len(results) == len(cases.attacks)
+        assert not results[0][1].succeeded
+
+    def test_write_replaces_the_results_from_a_complete_matrix(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        path = self._saved_path(cases, monkeypatch, tmp_path)
+        monkeypatch.delenv("INJECTIONTESTS_EFFORT", raising=False)
+        (tmp_path / "RESULTS.md").unlink()
+        assert cli.cmd_rescore(cases, argparse.Namespace(path=path, write=True)) == 0
+        results = (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
+        assert f"scripted at effort medium, 203 runs on {path.parent.name[:8]}" in results
+
+    def test_without_write_it_only_prints(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        path = self._saved_path(cases, monkeypatch, tmp_path, defense=["none"], no_tasks=True)
+        capsys.readouterr()
+        assert cli.cmd_rescore(cases, argparse.Namespace(path=path, write=False)) == 0
+        assert "Attacks that got through" in capsys.readouterr().out
+        assert not (tmp_path / "RESULTS.md").exists()
+
+    def test_a_partial_file_does_not_replace_the_results(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        path = self._saved_path(cases, monkeypatch, tmp_path, defense=["none"], no_tasks=True)
+        assert cli.cmd_rescore(cases, argparse.Namespace(path=path, write=True)) == 1
+        assert not (tmp_path / "RESULTS.md").exists()

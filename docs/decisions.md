@@ -32,4 +32,4 @@ The spotlight defense wraps every tool result in `<tool_output>` tags and tells 
 
 ## 8. Each paid run is saved as soon as it finishes
 
-A spend limit or network failure can stop an eval halfway, and the runs before it are already paid for. So every run is appended to `results/<time>/runs.jsonl` when it finishes, and an API error stops the eval with what it has. Only a complete, unfiltered matrix replaces `evals/RESULTS.md`, so a partial or filtered run cannot overwrite full results.
+A spend limit or network failure can stop an eval halfway, and the runs before it are already paid for. So every run is appended to `results/<time>/runs.jsonl` when it finishes, and an API error stops the eval with what it has. Only a complete, unfiltered matrix replaces `evals/RESULTS.md`, so a partial or filtered run cannot overwrite full results. `rescore` reads those transcripts and scores them with the current rules, so changing how a run is scored costs nothing and does not depend on a new run behaving the same way.

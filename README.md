@@ -53,6 +53,7 @@ Runs against Claude need an [Anthropic API key](https://console.anthropic.com/) 
 ```bash
 uv run injectiontests run --attack inbox-authority-payment --defense none   # one run
 uv run injectiontests eval                 # prints the size of the full matrix; add --yes to run it
+uv run injectiontests rescore results/<time>/runs.jsonl    # score saved runs again: free, no API key
 ```
 
 ## Development

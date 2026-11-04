@@ -42,10 +42,10 @@ Neither replaces the other. The worst case is a floor on safety that no model ch
 
 ## Cost and time
 
-Every real run records tokens, cost at list prices and seconds. Cache reads (the repeated system prompt and tools) are priced at a tenth of input. `injectiontests eval` without `--yes` prints how many runs a matrix would make before any money is spent.
+Every real run records tokens, cost at list prices and seconds. Cache reads (the repeated system prompt and tools) are priced at a tenth of input. `injectiontests eval` without `--yes` prints how many runs a matrix would make before any money is spent. Every transcript is saved as it finishes, and `injectiontests rescore results/<time>/runs.jsonl` scores them again for free, so a change to the scoring never needs a new paid run.
 
 ## In this repo
 
 - [scoring.py](../../src/injectiontests/scoring.py): `goal_reached`, `task_done`, `score`.
-- [evaluate.py](../../src/injectiontests/evaluate.py): `plan`, `run_matrix`, `worst_case`, `worst_case_problems`, `summarize`.
+- [evaluate.py](../../src/injectiontests/evaluate.py): `plan`, `run_matrix`, `worst_case`, `worst_case_problems`, `summarize`, `read_results`.
 - [evals/WORST_CASE.md](../../evals/WORST_CASE.md): the generated worst-case tables.

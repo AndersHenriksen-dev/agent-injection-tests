@@ -1,4 +1,4 @@
-"""Command line: list the cases, run the free worst-case check, or run attacks against Claude.
+"""Command line: list the cases, run the free worst-case check, run attacks against Claude, or score saved runs again.
 
 `run` and `eval` call the paid API, so `eval` only prints its plan unless it is given `--yes`.
 """
@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 import anthropic
 from dotenv import load_dotenv
@@ -21,6 +22,7 @@ from injectiontests.evaluate import (
     append_result,
     by_goal,
     plan,
+    read_results,
     run_matrix,
     run_one,
     summarize,
@@ -28,7 +30,7 @@ from injectiontests.evaluate import (
     worst_case,
     worst_case_problems,
 )
-from injectiontests.models import Attack
+from injectiontests.models import Attack, Verdict
 
 
 def _claude() -> tuple[ClaudeModel, str]:
@@ -52,6 +54,19 @@ def _print_result(result: Result) -> None:
     label = f"{verdict.defense:>15}  {verdict.attack or '(no attack)':<28} {verdict.task:<16}"
     attack_part = f"attack {outcome:<14}" if verdict.attack else " " * 21
     print(f"{label} {attack_part} task {'done' if verdict.task_done else 'NOT done'}  ${transcript.cost_usd:.4f}")
+
+
+def _results_text(cases: Cases, verdicts: list[Verdict]) -> str:
+    return f"{table(summarize(verdicts), with_model_columns=True)}\n\n{by_goal(cases, verdicts)}"
+
+
+def _write_results(description: str, stamp: str, verdicts: list[Verdict], text: str) -> None:
+    total = sum(verdict.cost_usd for verdict in verdicts)
+    (EVALS_DIR / "RESULTS.md").write_text(
+        f"# Results\n\n{description}, {len(verdicts)} runs on {stamp[:8]}, USD {total:.2f} in total.\n\n{text}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def cmd_list(cases: Cases, _: argparse.Namespace) -> int:
@@ -120,16 +135,30 @@ def cmd_eval(cases: Cases, args: argparse.Namespace) -> int:
         print(f"\nStopped after {len(results)} of {runs} runs: {error}", file=sys.stderr)
 
     verdicts = [verdict for _, verdict in results]
-    total = sum(verdict.cost_usd for verdict in verdicts)
-    text = f"{table(summarize(verdicts), with_model_columns=True)}\n\n{by_goal(cases, verdicts)}"
+    text = _results_text(cases, verdicts)
     if not (stopped or args.defense or args.attack or args.no_tasks):
-        (EVALS_DIR / "RESULTS.md").write_text(
-            f"# Results\n\n{description}, {runs} runs on {stamp[:8]}, USD {total:.2f} in total.\n\n{text}\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        _write_results(description, stamp, verdicts, text)
+    total = sum(verdict.cost_usd for verdict in verdicts)
     print(f"\n{text}\n\nUSD {total:.4f} in total. Transcripts in {path}")
     return 1 if stopped else 0
+
+
+def cmd_rescore(cases: Cases, args: argparse.Namespace) -> int:
+    """Score saved runs again with the current rules, at no cost, and with --write replace evals/RESULTS.md.
+
+    Saved runs do not record the effort, so a run at another effort needs INJECTIONTESTS_EFFORT set here too.
+    """
+    results = read_results(args.path, cases)
+    verdicts = [verdict for _, verdict in results]
+    text = _results_text(cases, verdicts)
+    print(text)
+    if not args.write:
+        return 0
+    if len(results) != len(list(plan(cases, list(DEFENSES.values()), cases.attacks, with_tasks=True))):
+        print(f"{args.path} is not a complete matrix, so evals/RESULTS.md is unchanged.", file=sys.stderr)
+        return 1
+    _write_results(f"{results[0][0].model} at effort {effort_from_env()}", args.path.parent.name, verdicts, text)
+    return 0
 
 
 _WORST_CASE_INTRO = """# Worst case
@@ -157,6 +186,15 @@ def main() -> None:
     matrix.add_argument("--attack", nargs="*")
     matrix.add_argument("--no-tasks", action="store_true", help="skip the runs without an attack")
     matrix.add_argument("--yes", action="store_true", help="start the paid runs")
+    again = commands.add_parser("rescore", help="score saved runs again with the current rules (free)")
+    again.add_argument("path", type=Path, help="a runs.jsonl file from results/")
+    again.add_argument("--write", action="store_true", help="write evals/RESULTS.md from a complete matrix")
     args = parser.parse_args()
-    handlers = {"list": cmd_list, "worst-case": cmd_worst_case, "run": cmd_run, "eval": cmd_eval}
+    handlers = {
+        "list": cmd_list,
+        "worst-case": cmd_worst_case,
+        "run": cmd_run,
+        "eval": cmd_eval,
+        "rescore": cmd_rescore,
+    }
     sys.exit(handlers[args.command](load(), args))

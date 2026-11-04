@@ -178,3 +178,17 @@ def append_result(result: Result, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as file:
         file.write(json.dumps({"transcript": transcript.model_dump(), "verdict": verdict.model_dump()}) + "\n")
+
+
+def read_results(path: Path, cases: Cases) -> list[Result]:
+    """Read saved transcripts and score them with the current rules, so a scoring change needs no new API calls.
+
+    The verdicts saved beside the transcripts are ignored: they show the rules at the time of the run.
+    """
+    attacks = {attack.id: attack for attack in cases.attacks}
+    results: list[Result] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        transcript = Transcript.model_validate(json.loads(line)["transcript"])
+        attack = attacks[transcript.attack] if transcript.attack else None
+        results.append((transcript, score(transcript, cases.tasks[transcript.task], attack, cases.world)))
+    return results
