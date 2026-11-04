@@ -25,7 +25,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run
 | [.claude/commands/commit-push-pr.md](.claude/commands/commit-push-pr.md) | Committing and opening a pull request | Command that runs the checks, commits, pushes and opens the pull request by the workflow above. |
 | [.claude/hooks/check_python_style_read.py](.claude/hooks/check_python_style_read.py) | Debugging why a Python edit was blocked | `PreToolUse` hook that blocks editing `.py`/`.ipynb` files until the style guide has been read in the session. |
 | [.claude/settings.json](.claude/settings.json) | Changing permissions or hooks | Allowed, asked and denied commands (paid runs ask; force pushes that are not `--force-with-lease` are denied), and the hook above. |
-| [.pre-commit-config.yaml](.pre-commit-config.yaml) and [.github/workflows/ci.yml](.github/workflows/ci.yml) | Changing what runs on commit or in CI | The automatic half of the style guide, the worst-case check and the gitleaks secret scan. |
+| [.pre-commit-config.yaml](.pre-commit-config.yaml), [.github/workflows/ci.yml](.github/workflows/ci.yml) and [.gitleaks.toml](.gitleaks.toml) | Changing what runs on commit or in CI | The automatic half of the style guide, the worst-case check and the gitleaks secret scan, which allows only the canary key. |
 | [docs/decisions.md](docs/decisions.md) | Changing a design choice | Why things are built the way they are. |
 | [docs/learn/](docs/learn/README.md) | Learning or explaining how the suite works | Study guide: prompt injection, the agent loop, the attacks, the defenses, measuring, self-test questions and further reading, with pointers into the code. |
 

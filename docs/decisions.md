@@ -24,7 +24,7 @@ The model under test defaults to `claude-opus-5-5` at effort `medium`, and both 
 
 ## 6. Synthetic world, reserved domains
 
-The company, its clients, accounts and staff are made up. Company addresses use `examplefund.test` and attacker addresses use `attacker.example`, both reserved top-level domains, so no case can point at a real site. Client accounts and one API key are canaries: the egress guard blocks them in any outbound call, however they are spaced.
+The company, its clients, accounts and staff are made up. Company addresses use `examplefund.test` and attacker addresses use `attacker.example`, both reserved top-level domains, so no case can point at a real site. Client accounts and one API key are canaries: the egress guard blocks them in any outbound call, however they are spaced. The secret scan allowlists that one key by exact value rather than by folder, so a real key in the same files is still caught.
 
 ## 7. Tool output is marked with a tag the data cannot close
 
