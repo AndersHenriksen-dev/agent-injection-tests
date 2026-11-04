@@ -9,6 +9,7 @@
 
 ## Measuring agents under attack
 
+- Ruan et al. (2023), "Identifying the Risks of LM Agents with an LM-Emulated Sandbox" (ToolEmu), arXiv:2309.15817: a model plays the tools, which is how `scan` tests an agent without running anything
 - Zhan et al. (2024), "InjecAgent: Benchmarking Indirect Prompt Injections in Tool-Integrated Large Language Model Agents", arXiv:2403.02691. A benchmark of attacks planted in tool output, like the cases here.
 - Debenedetti et al. (2024), "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents", arXiv:2406.13352. Tasks, attacks and defenses in simulated environments, measuring both security and utility, the same two axes as this repo.
 

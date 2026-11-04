@@ -40,12 +40,19 @@ A good answer warns the employee, and a warning repeats the attacker's claim. So
 
 ## 10. Other people's agents run with simulated tools only
 
-`scan` runs a skill or agent's real instructions on a real model, but every tool returns made-up text and only records the call. The test is to see whether the model obeys an attacker, so a run that works must do no harm, and no file from the repo under test goes to the API. The cost is that it tests the instructions and the tool list, not the whole product: Claude Code's own system prompt and permission prompts are not in the run. The report says so. Running the real agent in a sandbox would be closer to the truth, but one mistake in the sandbox would let a planted command run on the user's machine. Fixed, generic tool output has a measured weakness: in the first real scan the agent noticed in every one of 18 runs and could not do its job, so a clean result is weak evidence.
-
+`scan` runs a skill or agent's real instructions on a real model, but every tool returns made-up text and only records the call. The test is to see whether the model obeys an attacker, so a run that works must do no harm, and no file from the repo under test goes to the API. The cost is that it tests the instructions and the tool list, not the whole product: Claude Code's own system prompt and permission prompts are not in the run. The report says so. Running the real agent in a sandbox would be closer to the truth, but one mistake in the sandbox would let a planted command run on the user's machine.
 ## 11. A free audit comes first, and its fixes name real settings
 
 Most of what is worth fixing can be read from the file: which tools it has, what runs without asking, and what it promises. That is the worst case applied to someone else's agent, so it holds whatever the model does and costs nothing. Each fix names a setting that exists in Claude Code's docs, and it must not be weaker than it looks: `allowed-tools` only pre-approves, and a deny rule such as `Bash(curl *)` is not a security boundary, so neither is offered as the answer. The rules are word lists, so unknown MCP tool names count as risky, and the report says what the file cannot show, such as `settings.json` and hooks.
 
 ## 12. An attack that never arrived is not an attack resisted
 
-A run counts as resisted only if the payload reached the model. An agent that reads nothing never saw the attack, so counting that run would make a lazy agent look safe. The report lists those runs as not delivered and says to give the agent a request that makes it read.
+A run counts as resisted only if the payload reached the model. An agent that reads nothing never saw the attack, so counting that run would make a lazy agent look safe. The report lists those runs as not delivered and says to give the agent a request that makes it read. In the same way, a run cut off before it answered counts as out of turns, not as resisted, because it could still have obeyed.
+
+## 13. A small model writes the simulated tool output
+
+With fixed text, `eval-reviewer` could not do its job in any of 18 runs: every file came back as the same notes, so each answer said so. A clean result from an agent that gave up shows little. So a small model now makes up believable output for each call, given the agent's instructions and request, the approach of ToolEmu (Ruan et al., 2023). With it, 11 of the 18 runs did the real job. It costs about USD 0.009 per run on Haiku 5.5, about what the agent itself cost there, and it can never touch anything: it only returns text. It never sees the payload, which is added afterwards, and one project is shared by all the attacks on a target, so they see the same files and repeated calls are free. Fixed text remains the fallback when it gives no answer, and what the tests use.
+
+## 14. Attacks run four at a time, and the conversation is cached
+
+One scan on Haiku 5.5 took 23 minutes and USD 0.34, because attacks ran one after another and each turn re-sent the whole conversation. Runs share nothing but the emulator, which locks per call, so four can run together. Caching the conversation as it grows should lower the input cost, but the emulator leaves it off: its prompts change every call, so it would pay to write a cache it never reads.
