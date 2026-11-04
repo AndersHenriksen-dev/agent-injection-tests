@@ -15,7 +15,7 @@ The worst-case numbers below come from the scripted, fully hijacked model ([eval
 
 **Worst case.** Stops 0 of 24: a fully hijacked model ignores the prompt by definition.
 
-**What it is for.** Against a real model it can lower how often the model is fooled, and it costs nothing. It is a first layer, never the only one.
+**What it is for.** Against a real model it can lower how often the model is fooled, and it costs nothing. It is a first layer, never the only one. In the [first real run](05-measuring.md#the-first-real-run) it had nothing to lower: Claude Haiku 5.5 resisted all 24 attacks without it.
 
 ## Marking tool output as data (`spotlight`)
 
