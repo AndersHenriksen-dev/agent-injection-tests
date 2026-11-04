@@ -1,6 +1,6 @@
-"""Command line: list the cases, run the free worst-case check, run attacks against Claude, or score saved runs again.
+"""Command line: test a skill or agent from another repo, or run this repo's own eval.
 
-`run` and `eval` call the paid API, so `eval` only prints its plan unless it is given `--yes`.
+`run`, `eval` and `scan` call the paid API, so `eval` and `scan` only print their plan unless given `--yes`.
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ import anthropic
 from dotenv import find_dotenv, load_dotenv
 
 from injectiontests.agent import ClaudeModel
+from injectiontests.audit import audit
 from injectiontests.cases import Cases, load
-from injectiontests.config import EVALS_DIR, RESULTS_DIR, effort_from_env, model_from_env
+from injectiontests.config import EVALS_DIR, PRICES, RESULTS_DIR, SCAN_RESULTS_DIR, effort_from_env, model_from_env
 from injectiontests.defenses import DEFENSES, Defense
 from injectiontests.evaluate import (
     Result,
@@ -30,7 +31,10 @@ from injectiontests.evaluate import (
     worst_case,
     worst_case_problems,
 )
-from injectiontests.models import Attack, Verdict
+from injectiontests.models import Attack, Severity, Target, Verdict
+from injectiontests.report import audit_report, scan_report
+from injectiontests.scan import AttackResult, Outcome, default_task, estimate_cost_usd, findings_from, model_for, scan
+from injectiontests.targets import find_target_files, load_target, reachable_attacks
 
 
 def _claude() -> tuple[ClaudeModel, str]:
@@ -38,6 +42,12 @@ def _claude() -> tuple[ClaudeModel, str]:
     load_dotenv(find_dotenv(usecwd=True))
     name, effort = model_from_env(), effort_from_env()
     return ClaudeModel(anthropic.Anthropic(), name, effort), f"{name} at effort {effort}"
+
+
+def _scan_model(name: str) -> ClaudeModel:
+    """A Claude model for a scan, which may differ per target."""
+    load_dotenv(find_dotenv(usecwd=True))
+    return ClaudeModel(anthropic.Anthropic(), name, effort_from_env())
 
 
 def _defenses(names: list[str] | None) -> list[Defense]:
@@ -171,6 +181,79 @@ model does. Regenerate with `uv run injectiontests worst-case --write`.
 """
 
 
+def _targets_at(path: Path) -> list[Target]:
+    return [load_target(file) for file in find_target_files(path)]
+
+
+def cmd_audit(_: Cases, args: argparse.Namespace) -> int:
+    """Print what to fix in each skill or agent, for free. With --check, fail on anything high."""
+    targets = _targets_at(args.path)
+    if not targets:
+        print(f"No skill or agent files found at {args.path}.", file=sys.stderr)
+        return 1
+    found = [(target, audit(target)) for target in targets]
+    print("\n".join(audit_report(target, findings) for target, findings in found))
+    high = any(finding.severity is Severity.HIGH for _, findings in found for finding in findings)
+    return 1 if args.check and high else 0
+
+
+def _print_scan_plan(cases: Cases, targets: list[Target], args: argparse.Namespace) -> None:
+    total_runs, total_cost = 0, 0.0
+    for target in targets:
+        model = model_for(target, args.model, model_from_env())
+        runs = len(reachable_attacks(target, cases.agent_attacks))
+        cost = estimate_cost_usd(model, runs)
+        total_runs, total_cost = total_runs + runs, total_cost + cost
+        price = f"about USD {cost:.2f}" if model in PRICES else "cost unknown"
+        print(f"{target.name} ({target.kind}): {runs} attacks with {model}, {price}")
+    print(
+        f"\nIn total {total_runs} runs, about USD {total_cost:.2f}. Tools are simulated, so nothing real runs, but "
+        "each agent's instructions go to the API. Run again with --yes to start.",
+    )
+
+
+def _scan_target(cases: Cases, target: Target, args: argparse.Namespace, stamp: str) -> tuple[bool, bool]:
+    """Scan one target and write its report. Returns whether any attack got through, and whether the API stopped it."""
+    name = model_for(target, args.model, model_from_env())
+    task = args.task or default_task(target)
+    folder = SCAN_RESULTS_DIR / stamp
+    folder.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(character if character.isalnum() or character in "-_" else "-" for character in target.name)
+    results: list[AttackResult] = []
+
+    def on_result(result: AttackResult) -> None:
+        results.append(result)
+        with (folder / f"{safe_name}.jsonl").open("a", encoding="utf-8") as file:
+            file.write(result.transcript.model_dump_json() + "\n")
+        print(f"{target.name:<24} {result.attack.id:<34} {result.outcome}  ${result.transcript.cost_usd:.4f}")
+
+    stopped = False
+    try:
+        scan(_scan_model(name), target, cases.agent_attacks, task, on_result)
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as error:
+        stopped = True
+        print(f"\nStopped {target.name} after {len(results)} runs: {error}", file=sys.stderr)
+    report = scan_report(target, [*findings_from(results), *audit(target)], results, name, task)
+    path = folder / f"{safe_name}.md"
+    path.write_text(report, encoding="utf-8", newline="\n")
+    print(f"\n{report}\nReport in {path}")
+    return any(result.outcome is Outcome.GOT_THROUGH for result in results), stopped
+
+
+def cmd_scan(cases: Cases, args: argparse.Namespace) -> int:
+    """Run planted attacks on each skill or agent with simulated tools. Without --yes, only print the plan."""
+    targets = _targets_at(args.path)
+    if not targets:
+        print(f"No skill or agent files found at {args.path}.", file=sys.stderr)
+        return 1
+    if not args.yes:
+        _print_scan_plan(cases, targets, args)
+        return 0
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    outcomes = [_scan_target(cases, target, args, stamp) for target in targets]
+    return 1 if any(through or stopped for through, stopped in outcomes) else 0
+
+
 def main() -> None:
     """Parse the command line and run a command."""
     parser = argparse.ArgumentParser(prog="injectiontests", description=__doc__)
@@ -191,6 +274,14 @@ def main() -> None:
     again = commands.add_parser("rescore", help="score saved runs again with the current rules (free)")
     again.add_argument("path", type=Path, help="a runs.jsonl file from results/")
     again.add_argument("--write", action="store_true", help="write evals/RESULTS.md from a complete matrix")
+    check = commands.add_parser("audit", help="list what to fix in a skill or agent you own (free)")
+    check.add_argument("path", type=Path, help="a skill or agent file, or a folder to search")
+    check.add_argument("--check", action="store_true", help="exit 1 if anything is high severity")
+    attack = commands.add_parser("scan", help="run planted attacks on a skill or agent you own (paid, tools simulated)")
+    attack.add_argument("path", type=Path, help="a skill or agent file, or a folder to search")
+    attack.add_argument("--task", help="a normal request for the agent, so that it reads something")
+    attack.add_argument("--model", help="the model to test, instead of the one the file names")
+    attack.add_argument("--yes", action="store_true", help="start the paid runs")
     args = parser.parse_args()
     handlers = {
         "list": cmd_list,
@@ -198,5 +289,7 @@ def main() -> None:
         "run": cmd_run,
         "eval": cmd_eval,
         "rescore": cmd_rescore,
+        "audit": cmd_audit,
+        "scan": cmd_scan,
     }
     sys.exit(handlers[args.command](load(), args))

@@ -15,6 +15,9 @@ build/
 # Raw transcripts of paid runs; the summary in evals/ is committed
 results/
 
+# Scans of skills and agents: transcripts that hold their instructions
+injection-results/
+
 # Editors
 .vscode/
 .idea/

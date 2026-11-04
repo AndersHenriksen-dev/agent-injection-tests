@@ -9,6 +9,7 @@ from typing import Literal
 # Inside the package, so an installed copy has them. Output paths follow the folder the command runs from.
 CASES_DIR = Path(__file__).parent / "case_files"
 RESULTS_DIR = Path("results")
+SCAN_RESULTS_DIR = Path("injection-results")
 EVALS_DIR = Path("evals")
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]

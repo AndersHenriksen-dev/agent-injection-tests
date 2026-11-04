@@ -1,6 +1,6 @@
 [project]
 name = "injectiontests"
-version = "0.1.0"
+version = "0.2.0"
 description = "Test whether a Claude agent can be hijacked by instructions hidden in what it reads, and find what to fix in your own skills and agents"
 readme = "README.md"
 requires-python = ">=3.12"

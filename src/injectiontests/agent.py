@@ -7,6 +7,7 @@ recorded before it runs, whether or not it is then allowed.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import Protocol
 
 import anthropic
@@ -148,14 +149,16 @@ def handle_tool_use(
     return call, result
 
 
-def run(model: Model, world: World, task: Task, attack: Attack | None, defense: Defense) -> Transcript:
-    """Run one task, with the attack planted if there is one, under one defense."""
-    workspace = Workspace(plant(world, attack) if attack else world)
-    guards = guards_for(defense, task, world)
-    tools = offered_tools(defense, task)
-    system = system_prompt(defense)
-    messages: list[MessageParam] = [{"role": "user", "content": task.prompt}]
-    transcript = Transcript(task=task.id, attack=attack.id if attack else None, defense=defense.name, model=model.name)
+def run_turns(
+    model: Model,
+    transcript: Transcript,
+    system: str,
+    tools: list[ToolParam],
+    prompt: str,
+    handle: Callable[[ToolUseBlock], tuple[ToolCall, ToolResultBlockParam]],
+) -> None:
+    """The loop itself: ask the model, hand each tool call to `handle`, and record everything in `transcript`."""
+    messages: list[MessageParam] = [{"role": "user", "content": prompt}]
     started = time.perf_counter()
 
     for _ in range(MAX_TURNS):
@@ -173,12 +176,27 @@ def run(model: Model, world: World, task: Task, attack: Attack | None, defense: 
             break
         results: list[ToolResultBlockParam] = []
         for block in uses:
-            call, result = handle_tool_use(block, guards, workspace, defense)
+            call, result = handle(block)
             transcript.calls.append(call)
             results.append(result)
         messages.append({"role": "user", "content": results})
 
-    transcript.shown_answer = filter_answer(defense, task, world, transcript.final_answer)
     transcript.seconds = round(time.perf_counter() - started, 2)
     transcript.cost_usd = cost_usd(model.name, transcript.usage)
+
+
+def run(model: Model, world: World, task: Task, attack: Attack | None, defense: Defense) -> Transcript:
+    """Run one task, with the attack planted if there is one, under one defense."""
+    workspace = Workspace(plant(world, attack) if attack else world)
+    guards = guards_for(defense, task, world)
+    transcript = Transcript(task=task.id, attack=attack.id if attack else None, defense=defense.name, model=model.name)
+    run_turns(
+        model,
+        transcript,
+        system_prompt(defense),
+        offered_tools(defense, task),
+        task.prompt,
+        lambda block: handle_tool_use(block, guards, workspace, defense),
+    )
+    transcript.shown_answer = filter_answer(defense, task, world, transcript.final_answer)
     return transcript

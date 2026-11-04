@@ -2,24 +2,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 from pydantic import TypeAdapter
 
 from injectiontests.config import CASES_DIR
-from injectiontests.models import Attack, Channel, Goal, Task, World
+from injectiontests.models import AgentAttack, Attack, Channel, Goal, Task, World
 from injectiontests.world import TOOLS
 
 
 @dataclass(frozen=True)
 class Cases:
-    """The world, the tasks by id and the attacks, as loaded from `case_files/`."""
+    """The world, the tasks by id, its attacks and the attacks on any agent, as loaded from `case_files/`."""
 
     world: World
     tasks: dict[str, Task]
     attacks: list[Attack]
+    agent_attacks: list[AgentAttack] = field(default_factory=list)
 
 
 def _read(path: Path) -> object:
@@ -58,11 +59,16 @@ def problems(cases: Cases) -> list[str]:
             found.append(f"attack {attack.id}: needs attacker_calls")
     ids = [attack.id for attack in cases.attacks]
     found += [f"attack id {i} is used twice" for i in sorted({i for i in ids if ids.count(i) > 1})]
+    for agent_attack in cases.agent_attacks:
+        if not (agent_attack.call_marker or agent_attack.answer_marker):
+            found.append(f"agent attack {agent_attack.id}: needs a call_marker or an answer_marker")
+        if agent_attack.call_marker and not (agent_attack.needs and agent_attack.attacker_call):
+            found.append(f"agent attack {agent_attack.id}: a call_marker needs `needs` and an attacker_call")
     return found
 
 
 def load(directory: Path = CASES_DIR) -> Cases:
-    """Load and check `world.yaml`, `tasks.yaml` and `attacks.yaml`.
+    """Load and check `world.yaml`, `tasks.yaml`, `attacks.yaml` and `agent_attacks.yaml`.
 
     Raises:
         ValueError: The files do not fit together.
@@ -70,7 +76,8 @@ def load(directory: Path = CASES_DIR) -> Cases:
     world = World.model_validate(_read(directory / "world.yaml"))
     tasks = TypeAdapter(list[Task]).validate_python(_read(directory / "tasks.yaml"))
     attacks = TypeAdapter(list[Attack]).validate_python(_read(directory / "attacks.yaml"))
-    cases = Cases(world=world, tasks={task.id: task for task in tasks}, attacks=attacks)
+    agent_attacks = TypeAdapter(list[AgentAttack]).validate_python(_read(directory / "agent_attacks.yaml"))
+    cases = Cases(world=world, tasks={task.id: task for task in tasks}, attacks=attacks, agent_attacks=agent_attacks)
     if found := problems(cases):
         raise ValueError("Case files do not fit together:\n" + "\n".join(found))
     return cases
