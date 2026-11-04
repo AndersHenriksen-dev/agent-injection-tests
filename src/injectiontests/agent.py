@@ -95,10 +95,10 @@ def cost_usd(model: str, usage: Usage) -> float:
     """What a run cost at list prices. Unknown models, such as the scripted one, cost nothing."""
     if model not in PRICES:
         return 0.0
-    input_price, output_price = PRICES[model]
+    input_price, output_price, cache_read_price = PRICES[model]
     total = (
         usage.input_tokens * input_price
-        + usage.cache_read_tokens * input_price * 0.1
+        + usage.cache_read_tokens * cache_read_price
         + usage.cache_write_tokens * input_price * 1.25
         + usage.output_tokens * output_price
     )

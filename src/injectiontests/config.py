@@ -20,11 +20,12 @@ DEFAULT_EFFORT: Effort = "medium"
 MAX_TOKENS = 16_000
 MAX_TURNS = 8
 
-# USD per million tokens: input, output. Cache reads cost 0.1x input and cache writes 1.25x (5-minute TTL).
-PRICES: dict[str, tuple[float, float]] = {
-    "claude-opus-5-5": (4.00, 20.00),
-    "claude-sonnet-5-5": (2.00, 10.00),
-    "claude-haiku-5-5": (0.10, 0.50),
+# USD per million tokens: input, output, cache read. Cache writes cost 1.25x input (5-minute TTL).
+PRICES: dict[str, tuple[float, float, float]] = {
+    "claude-fable-5-1": (10.00, 50.00, 0.25),
+    "claude-opus-5-5": (4.00, 20.00, 0.20),
+    "claude-sonnet-5-5": (2.00, 10.00, 0.20),
+    "claude-haiku-5-5": (0.10, 0.50, 0.01),
 }
 
 

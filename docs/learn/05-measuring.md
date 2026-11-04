@@ -84,7 +84,7 @@ Links are stricter. An outside link in the answer counts even inside a warning, 
 
 ## Cost and time
 
-Every real run records tokens, cost at list prices and seconds. Cache reads (the repeated system prompt and tools) are priced at a tenth of input. `injectiontests eval` without `--yes` prints how many runs a matrix would make before any money is spent. Every transcript is saved as it finishes, and `injectiontests rescore results/<time>/runs.jsonl` scores them again for free, so a change to the scoring never needs a new paid run.
+Every real run records tokens, cost at list prices and seconds. Cache reads (the repeated system prompt and tools) are priced at each model's own cache rate. `injectiontests eval` without `--yes` prints how many runs a matrix would make before any money is spent. Every transcript is saved as it finishes, and `injectiontests rescore results/<time>/runs.jsonl` scores them again for free, so a change to the scoring never needs a new paid run.
 
 ## In this repo
 
