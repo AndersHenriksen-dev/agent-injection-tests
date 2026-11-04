@@ -1,0 +1,51 @@
+# Read by lib/existing_agents/targets.py: what each tool lets an agent do, and how to place tools it does not know.
+
+# What a skill or subagent can call when its file does not limit it.
+default_tools: [Read, Write, Edit, NotebookEdit, Grep, Glob, Bash, WebFetch, WebSearch, Agent]
+
+# Folders never searched for skill and agent files.
+skipped_folders: [.git, .venv, node_modules, __pycache__, site-packages]
+
+# The capabilities are reads_outside_text, reads_private_data, sends_out, changes_things and runs_commands.
+tool_capabilities:
+  Read: [reads_outside_text, reads_private_data]
+  Grep: [reads_outside_text, reads_private_data]
+  Glob: [reads_private_data]
+  WebFetch: [reads_outside_text, sends_out]
+  WebSearch: [reads_outside_text, sends_out]
+  Write: [changes_things]
+  Edit: [changes_things]
+  NotebookEdit: [changes_things]
+  Bash: [reads_outside_text, reads_private_data, sends_out, changes_things, runs_commands]
+  PowerShell: [reads_outside_text, reads_private_data, sends_out, changes_things, runs_commands]
+  Agent: [reads_outside_text, reads_private_data, sends_out, changes_things]
+  Task: [reads_outside_text, reads_private_data, sends_out, changes_things]
+  AskUserQuestion: []
+  LSP: []
+  Monitor: []
+  Skill: []
+  TaskStop: []
+  TodoWrite: []
+  ToolSearch: []
+
+# MCP and custom tools are placed by the words in their names.
+web_words: [browse, download, fetch, http, navigate, request, url, web]
+read_words: [describe, find, get, list, lookup, query, read, search, view]
+write_words:
+  - add
+  - comment
+  - create
+  - delete
+  - edit
+  - merge
+  - pay
+  - post
+  - publish
+  - push
+  - remove
+  - send
+  - set
+  - transfer
+  - update
+  - upload
+  - write
