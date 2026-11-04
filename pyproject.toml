@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Anders Henriksen", email = "anhenr.dev@gmail.com" }]
 dependencies = [
-    "anthropic>=0.75",
+    "anthropic>=2.4",
     "python-dotenv>=1.0",
     "pydantic>=2.9",
     "pyyaml>=6.0",

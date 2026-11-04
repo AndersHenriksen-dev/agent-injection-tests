@@ -62,17 +62,12 @@ def run_matrix(
     cases: Cases,
     defenses: list[Defense],
     attacks: list[Attack],
-    with_tasks: bool = True,
-    on_result: Callable[[Result], None] | None = None,
-) -> list[Result]:
-    """Run the whole matrix with one model, calling `on_result` after each run."""
-    results: list[Result] = []
+    with_tasks: bool,
+    on_result: Callable[[Result], None],
+) -> None:
+    """Run the whole matrix with one model, handing each result to `on_result` as soon as it is done."""
     for task, attack, defense in plan(cases, defenses, attacks, with_tasks):
-        result = run_one(model, cases, task, attack, defense)
-        results.append(result)
-        if on_result is not None:
-            on_result(result)
-    return results
+        on_result(run_one(model, cases, task, attack, defense))
 
 
 def worst_case(cases: Cases) -> list[Result]:
@@ -177,9 +172,23 @@ def by_goal(cases: Cases, verdicts: list[Verdict]) -> str:
     return "\n".join(lines)
 
 
-def save(results: list[Result], directory: Path) -> None:
-    """Write every transcript and verdict as one JSON line, for reading back later."""
-    directory.mkdir(parents=True, exist_ok=True)
-    with (directory / "runs.jsonl").open("w", encoding="utf-8") as file:
-        for transcript, verdict in results:
-            file.write(json.dumps({"transcript": transcript.model_dump(), "verdict": verdict.model_dump()}) + "\n")
+def append_result(result: Result, path: Path) -> None:
+    """Add one transcript and verdict to a JSON Lines file, so a run is kept as soon as it is paid for."""
+    transcript, verdict = result
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as file:
+        file.write(json.dumps({"transcript": transcript.model_dump(), "verdict": verdict.model_dump()}) + "\n")
+
+
+def read_results(path: Path, cases: Cases) -> list[Result]:
+    """Read saved transcripts and score them with the current rules, so a scoring change needs no new API calls.
+
+    The verdicts saved beside the transcripts are ignored: they show the rules at the time of the run.
+    """
+    attacks = {attack.id: attack for attack in cases.attacks}
+    results: list[Result] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        transcript = Transcript.model_validate(json.loads(line)["transcript"])
+        attack = attacks[transcript.attack] if transcript.attack else None
+        results.append((transcript, score(transcript, cases.tasks[transcript.task], attack, cases.world)))
+    return results

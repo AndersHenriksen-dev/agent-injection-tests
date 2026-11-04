@@ -12,6 +12,7 @@ uv run injectiontests worst-case --check    # every case with scripted models: f
 uv run injectiontests worst-case --write    # regenerate evals/WORST_CASE.md
 uv run injectiontests run --attack <id> --defense <name>   # one run against Claude, costs money: ask first
 uv run injectiontests eval                  # prints the plan of the full matrix; --yes runs it, costs money: ask first
+uv run injectiontests rescore results/<time>/runs.jsonl    # score saved runs again, free; --write replaces evals/RESULTS.md
 uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run pytest   # what CI checks
 ```
 
