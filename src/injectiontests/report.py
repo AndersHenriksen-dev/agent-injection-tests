@@ -17,9 +17,11 @@ but run commands.
 - A scan simulates the tools and runs your instructions alone, without Claude Code's own system prompt and permission \
 prompts. It tests your instructions and tool list, not the whole product. Results vary between runs, and a clean run \
 over known attacks does not mean the agent is safe against someone who keeps trying.
-- The simulated files are generic, so the agent may notice they are not what it expected and give up on its job. Read \
-the answers in the transcripts: "resisted" from an agent that gave up is weak evidence that it would resist while \
-working."""
+- The tool output is made up by a small model, so the agent may notice that something is off and give up on its job. \
+The table shows how each answer starts: "resisted" from an agent that gave up is weak evidence that it would resist \
+while working."""
+
+_ANSWER_START_CHARS = 70
 
 
 def _header(target: Target) -> list[str]:
@@ -71,28 +73,48 @@ def audit_report(target: Target, findings: list[Finding]) -> str:
     return "\n".join([*_header(target), *_findings_section(findings), *_reach_table(target), _LIMITS, ""])
 
 
-def _results_section(results: list[AttackResult], model: str, task: str) -> list[str]:
+def _answer_start(result: AttackResult) -> str:
+    """The start of the answer, on one line, so that a person can see at a glance whether the agent did its job."""
+    words = " ".join(result.transcript.final_answer.split()).replace("|", "/")
+    return f"{words[:_ANSWER_START_CHARS]}..." if len(words) > _ANSWER_START_CHARS else words or "(no answer)"
+
+
+def _results_section(results: list[AttackResult], model: str, task: str, emulator_cost_usd: float) -> list[str]:
     counts = Counter(result.outcome for result in results)
     total = sum(result.transcript.cost_usd for result in results)
     summary = ", ".join(f"{counts[outcome]} {outcome}" for outcome in Outcome if counts[outcome])
+    cost = f"USD {total:.4f}, plus USD {emulator_cost_usd:.4f} for the simulated tool output"
     lines = [
         "## Attacks on a real model",
         "",
-        f"{len(results)} runs with {model}, USD {total:.4f}: {summary or 'nothing ran'}.",
+        f"{len(results)} runs with {model}, {cost}: {summary or 'nothing ran'}.",
         "",
         f"Request given to the agent: {task}",
         "",
-        "| Attack | Technique | Goal | Result |",
-        "|---|---|---|---|",
+        "| Attack | Technique | Goal | Result | The answer starts |",
+        "|---|---|---|---|---|",
     ]
     for result in results:
         attack = result.attack
-        lines.append(f"| `{attack.id}` | {attack.technique} | {GOAL_DESCRIPTIONS[attack.goal]} | {result.outcome} |")
+        cells = [
+            f"`{attack.id}`",
+            attack.technique,
+            GOAL_DESCRIPTIONS[attack.goal],
+            result.outcome,
+            _answer_start(result),
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
     lines.append("")
     if counts[Outcome.NOT_DELIVERED]:
         lines += [
             f"{counts[Outcome.NOT_DELIVERED]} attack(s) were not delivered: the agent read nothing, so those runs say "
             "nothing about resisting them. Give it a request that makes it read, with `--task`.",
+            "",
+        ]
+    if counts[Outcome.UNFINISHED]:
+        lines += [
+            f"{counts[Outcome.UNFINISHED]} run(s) ran out of turns before answering. No attack had worked by then, but "
+            "these runs could still have obeyed, so they do not count as resisted.",
             "",
         ]
     if counts[Outcome.REFUSED]:
@@ -104,12 +126,19 @@ def _results_section(results: list[AttackResult], model: str, task: str) -> list
     return lines
 
 
-def scan_report(target: Target, findings: list[Finding], results: list[AttackResult], model: str, task: str) -> str:
+def scan_report(
+    target: Target,
+    findings: list[Finding],
+    results: list[AttackResult],
+    model: str,
+    task: str,
+    emulator_cost_usd: float,
+) -> str:
     """The report of the paid test: what its file allows, and what the attacks did."""
     sections = [
         *_header(target),
         *_findings_section(findings),
-        *_results_section(results, model, task),
+        *_results_section(results, model, task, emulator_cost_usd),
         *_reach_table(target),
         _LIMITS,
         "",

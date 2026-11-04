@@ -16,7 +16,15 @@ from dotenv import find_dotenv, load_dotenv
 from injectiontests.agent import ClaudeModel
 from injectiontests.audit import audit
 from injectiontests.cases import Cases, load
-from injectiontests.config import EVALS_DIR, PRICES, RESULTS_DIR, SCAN_RESULTS_DIR, effort_from_env, model_from_env
+from injectiontests.config import (
+    EMULATOR_MODEL,
+    EVALS_DIR,
+    PRICES,
+    RESULTS_DIR,
+    SCAN_RESULTS_DIR,
+    effort_from_env,
+    model_from_env,
+)
 from injectiontests.defenses import DEFENSES, Defense
 from injectiontests.evaluate import (
     Result,
@@ -33,6 +41,7 @@ from injectiontests.evaluate import (
 )
 from injectiontests.models import Attack, Severity, Target, Verdict
 from injectiontests.report import audit_report, scan_report
+from injectiontests.sandbox import ToolEmulator
 from injectiontests.scan import AttackResult, Outcome, default_task, estimate_cost_usd, findings_from, model_for, scan
 from injectiontests.targets import find_target_files, load_target, reachable_attacks
 
@@ -48,6 +57,12 @@ def _scan_model(name: str) -> ClaudeModel:
     """A Claude model for a scan, which may differ per target."""
     load_dotenv(find_dotenv(usecwd=True))
     return ClaudeModel(anthropic.Anthropic(), name, effort_from_env())
+
+
+def _emulator_model() -> ClaudeModel:
+    """The small model that writes a scan's simulated tool output. It needs no deep thought."""
+    load_dotenv(find_dotenv(usecwd=True))
+    return ClaudeModel(anthropic.Anthropic(), EMULATOR_MODEL, "low", cache_conversation=False)
 
 
 def _defenses(names: list[str] | None) -> list[Defense]:
@@ -238,13 +253,18 @@ def _scan_target(cases: Cases, target: Target, args: argparse.Namespace, stamp: 
             file.write(result.transcript.model_dump_json() + "\n")
         print(f"{target.name:<24} {result.attack.id:<34} {result.outcome}  ${result.transcript.cost_usd:.4f}")
 
+    emulator = ToolEmulator(_emulator_model(), target, task)
     stopped = False
     try:
-        scan(_scan_model(name), target, cases.agent_attacks, task, on_result)
+        scan(_scan_model(name), target, cases.agent_attacks, task, on_result, emulator.output_for)
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as error:
         stopped = True
         print(f"\nStopped {target.name} after {len(results)} runs: {error}", file=sys.stderr)
-    report = scan_report(target, [*findings_from(results), *audit(target)], results, name, task)
+    # Runs finish in any order. The report follows the order of the attack file.
+    order = [attack.id for attack in cases.agent_attacks]
+    results.sort(key=lambda result: order.index(result.attack.id))
+    findings = [*findings_from(results), *audit(target)]
+    report = scan_report(target, findings, results, name, task, emulator.cost_usd)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{safe_name}.md"
     path.write_text(report, encoding="utf-8", newline="\n")

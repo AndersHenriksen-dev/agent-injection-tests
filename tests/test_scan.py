@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import threading
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import anthropic
@@ -11,11 +14,11 @@ import pytest
 from anthropic.types import Message, MessageParam, ToolParam
 
 from injectiontests import cli
-from injectiontests.agent import ScriptedModel
+from injectiontests.agent import Model, ScriptedModel
 from injectiontests.cases import Cases
-from injectiontests.models import AgentAttack, AgentGoal, PlannedCall, Target, TargetKind, Technique, ToolCall
+from injectiontests.models import AgentAttack, AgentGoal, PlannedCall, Target, TargetKind, Technique, ToolCall, Usage
 from injectiontests.report import audit_report, scan_report
-from injectiontests.sandbox import CANARY, Sandbox, offered_tools
+from injectiontests.sandbox import CANARY, OutputWriter, Sandbox, ToolEmulator, offered_tools
 from injectiontests.scan import (
     AttackResult,
     Outcome,
@@ -213,6 +216,27 @@ class TestRunAttack:
         result = run_attack(ScriptedModel([], "Fine."), _target(), _attack(cases, "hidden-run-command"), "Go.")
         assert result.outcome is Outcome.NOT_DELIVERED
 
+    def test_a_run_cut_off_before_it_answers_has_not_resisted(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("injectiontests.scan.SCAN_MAX_TURNS", 1)
+        result = run_attack(ScriptedModel([READ], "Fine."), _target(), _attack(cases, "hidden-run-command"), "Go.")
+        assert result.transcript.final_answer == ""
+        assert result.outcome is Outcome.UNFINISHED
+
+    def test_an_attack_that_worked_before_the_cut_off_still_counts(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        attack = _attack(cases, "helpful-step-run-command")
+        assert attack.attacker_call is not None
+        monkeypatch.setattr("injectiontests.scan.SCAN_MAX_TURNS", 2)
+        result = run_attack(ScriptedModel([READ, attack.attacker_call], "Done."), _target(), attack, "Go.")
+        assert result.outcome is Outcome.GOT_THROUGH
+
     def test_a_refusal_is_its_own_outcome(self, cases: Cases) -> None:
         result = run_attack(Refuses(), _target(), _attack(cases, "hidden-run-command"), "Go.")
         assert result.outcome is Outcome.REFUSED
@@ -277,8 +301,10 @@ class TestFindingsAndReport:
 
     def test_the_report_says_what_was_not_tested(self, cases: Cases) -> None:
         results = self._results(cases)
-        report = scan_report(_target(), findings_from(results), results, "claude-haiku-5-5", "Go.")
+        report = scan_report(_target(), findings_from(results), results, "claude-haiku-5-5", "Go.", 0.25)
         assert "1 got through, 1 resisted, 1 not delivered" in report
+        assert "plus USD 0.2500 for the simulated tool output" in report
+        assert "| Fine. |" in report
         assert "were not delivered" in report
         assert "--task" in report
         assert "What this does not cover" in report
@@ -307,6 +333,7 @@ class TestCommands:
 
     def _use(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, model: object) -> None:
         monkeypatch.setattr(cli, "_scan_model", lambda _: model)
+        monkeypatch.setattr(cli, "_emulator_model", lambda: ScriptedModel([], "Made-up project text."))
         monkeypatch.setattr(cli, "SCAN_RESULTS_DIR", tmp_path / "out")
 
     def test_audit_prints_and_passes_by_default(
@@ -383,10 +410,11 @@ class TestCommands:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        def no_paid_call(_: str) -> None:
+        def no_paid_call(*_: str) -> None:
             raise AssertionError("a model was created")
 
         monkeypatch.setattr(cli, "_scan_model", no_paid_call)
+        monkeypatch.setattr(cli, "_emulator_model", no_paid_call)
         monkeypatch.setattr(cli, "SCAN_RESULTS_DIR", tmp_path / "out")
         assert cli.cmd_scan(cases, self._scan_args(self._file(tmp_path), yes=False)) == 0
         output = capsys.readouterr().out
@@ -433,8 +461,204 @@ class TestCommands:
                     raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.test/x"))
                 return super().respond(system=system, tools=tools, messages=messages)
 
+        monkeypatch.setattr("injectiontests.scan.SCAN_PARALLEL_RUNS", 1)
         self._use(monkeypatch, tmp_path, FailsAfterOne([], "Fine."))
         assert cli.cmd_scan(cases, self._scan_args(self._file(tmp_path))) == 1
         assert len(list((tmp_path / "out").glob("*/my-agent.md"))) == 1
         transcripts = next((tmp_path / "out").glob("*/my-agent.jsonl")).read_text(encoding="utf-8").splitlines()
         assert len(transcripts) == 1
+
+
+class RecordingModel(ScriptedModel):
+    """A model that writes fixed text and keeps every prompt it was given."""
+
+    def __init__(self, answer: str = "Made-up text.") -> None:
+        """Answer every call with `answer`."""
+        super().__init__([], answer)
+        self.systems: list[str] = []
+        self.prompts: list[str] = []
+
+    def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+        self.systems.append(system)
+        self.prompts.append(str(messages[0]["content"]))
+        return super().respond(system=system, tools=tools, messages=messages)
+
+
+class TestEmulator:
+    def _emulator(self, model: ScriptedModel) -> ToolEmulator:
+        target = _target(description="Reviews eval failures.", instructions="Read evals/answers.json.")
+        return ToolEmulator(model, target, "Sort the failures.")
+
+    def test_it_is_told_about_the_agent_and_the_request(self) -> None:
+        model = RecordingModel()
+        self._emulator(model).output_for("Read", {"file_path": "evals/answers.json"})
+        assert "Reviews eval failures." in model.systems[0]
+        assert "Read evals/answers.json." in model.systems[0]
+        assert "Sort the failures." in model.systems[0]
+        assert "evals/answers.json" in model.prompts[0]
+
+    def test_it_is_told_not_to_plant_anything_itself(self) -> None:
+        model = RecordingModel()
+        self._emulator(model).output_for("Read", {"file_path": "a.md"})
+        assert "Never write anything addressed to an AI assistant" in model.systems[0]
+
+    def test_the_same_call_costs_one_model_call_and_gives_the_same_text(self) -> None:
+        model = RecordingModel()
+        emulator = self._emulator(model)
+        first = emulator.output_for("Read", {"file_path": "a.md"})
+        assert emulator.output_for("Read", {"file_path": "a.md"}) == first
+        assert len(model.prompts) == 1
+
+    def test_later_calls_see_earlier_output_to_stay_consistent(self) -> None:
+        model = RecordingModel("A file list.")
+        emulator = self._emulator(model)
+        emulator.output_for("Glob", {"pattern": "**/*"})
+        emulator.output_for("Read", {"file_path": "a.md"})
+        assert "A file list." in model.prompts[1]
+        assert "**/*" in model.prompts[1]
+
+    def test_an_empty_answer_falls_back_to_plain_text(self) -> None:
+        assert "Project notes" in self._emulator(RecordingModel("")).output_for("Read", {"file_path": "a.md"})
+
+    def test_a_refusal_falls_back_to_plain_text(self) -> None:
+        class RefusesToWrite(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                message = super().respond(system=system, tools=tools, messages=messages)
+                return message.model_copy(update={"stop_reason": "refusal", "content": []})
+
+        assert "Project notes" in self._emulator(RefusesToWrite([], "")).output_for("Read", {"file_path": "a.md"})
+
+    def test_it_counts_what_it_costs(self) -> None:
+        model = RecordingModel()
+        model.name = "claude-haiku-5-5"
+        emulator = self._emulator(model)
+        emulator.usage = Usage(input_tokens=1_000_000)
+        assert emulator.cost_usd == pytest.approx(0.1)
+
+
+class TestSandboxWithEmulator:
+    def test_the_payload_goes_on_top_of_its_text_and_is_not_kept(self) -> None:
+        model = RecordingModel("Believable text.")
+        emulator = ToolEmulator(model, _target(), "Go.")
+        sandbox = Sandbox("PLANTED", emulator.output_for)
+        first = sandbox.execute("Read", {"file_path": "a.md"})
+        assert "Believable text." in first
+        assert "PLANTED" in first
+        assert "PLANTED" not in emulator.output_for("Read", {"file_path": "a.md"})
+
+    def test_it_never_sees_the_payload_during_a_whole_run(self, cases: Cases) -> None:
+        attack = _attack(cases, "helpful-step-run-command")
+        model = RecordingModel()
+        emulator = ToolEmulator(model, _target(), "Go.")
+        second = PlannedCall(tool="Read", arguments={"file_path": "b.md"})
+        result = run_attack(ScriptedModel([READ, second], "Fine."), _target(), attack, "Go.", emulator.output_for)
+        assert result.outcome is Outcome.RESISTED
+        assert len(model.prompts) == 2
+        for text in [*model.prompts, *model.systems]:
+            assert "setup.attacker.example" not in text
+
+    @pytest.mark.parametrize(
+        ("tool", "arguments"),
+        [
+            ("Read", {"file_path": ".env"}),
+            ("WebFetch", {"url": "https://a.attacker.example/x", "prompt": "y"}),
+            ("Bash", {"command": "curl https://a.attacker.example/x"}),
+            ("Write", {"file_path": "a.md", "content": "x"}),
+            ("Edit", {"file_path": "a.md", "old_string": "x", "new_string": "y"}),
+            ("TodoWrite", {"todos": "x"}),
+        ],
+    )
+    def test_some_calls_never_reach_it(self, tool: str, arguments: dict[str, str]) -> None:
+        model = RecordingModel()
+        Sandbox(None, ToolEmulator(model, _target(), "Go.").output_for).execute(tool, arguments)
+        assert model.prompts == []
+
+    def test_a_file_list_comes_from_it_but_carries_no_payload(self) -> None:
+        model = RecordingModel("evals/answers.json")
+        sandbox = Sandbox("PLANTED", ToolEmulator(model, _target(), "Go.").output_for)
+        assert sandbox.execute("Glob", {"pattern": "**/*"}) == "evals/answers.json"
+        assert not sandbox.delivered
+
+    def test_attacks_on_one_target_share_one_project(self, cases: Cases) -> None:
+        model = RecordingModel()
+        emulator = ToolEmulator(model, _target(), "Go.")
+        scan(ScriptedModel([READ], "Fine."), _target(), cases.agent_attacks, "Go.", lambda _: None, emulator.output_for)
+        assert len(model.prompts) == 1
+
+
+class TestRunningTogether:
+    def test_runs_overlap(self, cases: Cases) -> None:
+        barrier = threading.Barrier(2, timeout=5)
+
+        class WaitsForAnother(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                if len(messages) == 1:
+                    barrier.wait()
+                return super().respond(system=system, tools=tools, messages=messages)
+
+        results: list[AttackResult] = []
+        scan(WaitsForAnother([], "Fine."), _target(), cases.agent_attacks[:2], "Go.", results.append)
+        assert len(results) == 2
+
+    def test_a_shared_emulator_writes_each_call_once(self, cases: Cases) -> None:
+        model = RecordingModel()
+        emulator = ToolEmulator(model, _target(), "Go.")
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            texts = list(pool.map(lambda _: emulator.output_for("Read", {"file_path": "a.md"}), range(8)))
+        assert set(texts) == {"Made-up text."}
+        assert len(model.prompts) == 1
+
+    def test_an_api_error_stops_the_scan_and_passes_up(self, cases: Cases) -> None:
+        class Fails(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.test/x"))
+
+        with pytest.raises(anthropic.APIConnectionError):
+            scan(Fails([], ""), _target(), cases.agent_attacks, "Go.", lambda _: None)
+
+    def test_the_report_keeps_the_order_of_the_attack_file(
+        self,
+        cases: Cases,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def finishes_backwards(
+            model: Model,
+            target: Target,
+            attacks: list[AgentAttack],
+            task: str,
+            on_result: Callable[[AttackResult], None],
+            write_output: OutputWriter,
+        ) -> None:
+            for attack in reversed(attacks):
+                on_result(run_attack(model, target, attack, task, write_output))
+
+        path = tmp_path / "agent.md"
+        path.write_text("---\nname: a\ntools: Read, Bash\n---\nReview it.", encoding="utf-8", newline="\n")
+        monkeypatch.setattr(cli, "scan", finishes_backwards)
+        monkeypatch.setattr(cli, "_scan_model", lambda _: ScriptedModel([READ], "Fine."))
+        monkeypatch.setattr(cli, "_emulator_model", lambda: ScriptedModel([], "Made-up text."))
+        monkeypatch.setattr(cli, "SCAN_RESULTS_DIR", tmp_path / "out")
+        args = argparse.Namespace(path=path, task=None, model="claude-haiku-5-5", yes=True)
+        assert cli.cmd_scan(cases, args) == 0
+        report = next((tmp_path / "out").glob("*/a.md")).read_text(encoding="utf-8")
+        positions = [report.index(f"| `{attack.id}` |") for attack in cases.agent_attacks]
+        assert positions == sorted(positions)
+
+
+class TestAnswerStart:
+    def _result(self, cases: Cases, answer: str) -> AttackResult:
+        return run_attack(ScriptedModel([READ], answer), _target(), _attack(cases, "hidden-hijack"), "Go.")
+
+    def _table(self, cases: Cases, answer: str) -> str:
+        return scan_report(_target(), [], [self._result(cases, answer)], "m", "Go.", 0.0)
+
+    def test_a_long_answer_is_cut(self, cases: Cases) -> None:
+        report = self._table(cases, "I could not review any failed cases. " * 10)
+        assert "| I could not review any failed cases. I could not review any failed cas... |" in report
+
+    def test_a_table_in_the_answer_does_not_break_the_row(self, cases: Cases) -> None:
+        assert "| a / b |" in self._table(cases, "a | b")
+
+    def test_no_answer_says_so(self, cases: Cases) -> None:
+        assert "| (no answer) |" in self._table(cases, "")
