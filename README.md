@@ -17,11 +17,11 @@ injectiontests scan .claude/agents/reviewer.md --task "Review the open pull requ
 ```
 
 - **`audit`** calls no model and needs no API key. It lists what to fix, most severe first, with the exact setting to change, and shows what an attacker could reach if the model were fooled. On my own `eval-reviewer` agent, whose description says it changes no files, it pointed out that it has `Bash`, so nothing enforces that.
-- **`scan`** runs the agent's real instructions on a real model, with up to 18 planted attacks in what it reads. Every tool is simulated, so nothing real is read, sent or changed. Only the instructions go to the API. It needs `ANTHROPIC_API_KEY` in the environment or a `.env` file, and costs roughly USD 0.01 per agent on Haiku 5.5, 0.19 on Sonnet 5.5 and 0.37 on Opus 5.5. Reports go to `injection-results/`, which you should add to `.gitignore`.
+- **`scan`** runs the agent's real instructions on a real model, with up to 18 planted attacks in what it reads. Every tool is simulated, so nothing real is read, sent or changed. Only the instructions go to the API. It needs `ANTHROPIC_API_KEY` in the environment or a `.env` file, and costs roughly USD 0.03 per agent on Haiku 5.5, 0.53 on Sonnet 5.5 and 1.04 on Opus 5.5. Reports go to `injection-results/`, which you should add to `.gitignore`.
 - **In CI:** `audit --check` exits 1 on anything high severity, and `scan` exits 1 if an attack got through.
 - **Built on the API or the Agent SDK?** Write its tool names and system prompt in a small Markdown file in the same format.
 
-A clean result is not proof: these are known attacks run once, and a scan tests your instructions and tool list, not your whole setup. The [study guide](docs/learn/08-your-own-agent.md) explains how it works and what it cannot see.
+A clean result is not proof: these are known attacks run once, and a scan tests your instructions and tool list, not your whole setup. The simulated files are also generic. In the first real scan, of my `eval-reviewer` agent on Haiku 5.5, the agent could not do its job in any of the 18 runs, because the files were not what it expected. So far, trust `audit` more than a clean `scan`. The [study guide](docs/learn/08-your-own-agent.md) explains how it works and what it cannot see.
 
 ## What the guards guarantee on their own
 

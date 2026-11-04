@@ -40,7 +40,7 @@ A good answer warns the employee, and a warning repeats the attacker's claim. So
 
 ## 10. Other people's agents run with simulated tools only
 
-`scan` runs a skill or agent's real instructions on a real model, but every tool returns made-up text and only records the call. The test is to see whether the model obeys an attacker, so a run that works must do no harm, and no file from the repo under test goes to the API. The cost is that it tests the instructions and the tool list, not the whole product: Claude Code's own system prompt and permission prompts are not in the run. The report says so. Running the real agent in a sandbox would be closer to the truth, but one mistake in the sandbox would let a planted command run on the user's machine.
+`scan` runs a skill or agent's real instructions on a real model, but every tool returns made-up text and only records the call. The test is to see whether the model obeys an attacker, so a run that works must do no harm, and no file from the repo under test goes to the API. The cost is that it tests the instructions and the tool list, not the whole product: Claude Code's own system prompt and permission prompts are not in the run. The report says so. Running the real agent in a sandbox would be closer to the truth, but one mistake in the sandbox would let a planted command run on the user's machine. Fixed, generic tool output has a measured weakness: in the first real scan the agent noticed in every one of 18 runs and could not do its job, so a clean result is weak evidence.
 
 ## 11. A free audit comes first, and its fixes name real settings
 

@@ -16,7 +16,10 @@ finding. Agents run without a person, for example in CI, have no permission prom
 but run commands.
 - A scan simulates the tools and runs your instructions alone, without Claude Code's own system prompt and permission \
 prompts. It tests your instructions and tool list, not the whole product. Results vary between runs, and a clean run \
-over known attacks does not mean the agent is safe against someone who keeps trying."""
+over known attacks does not mean the agent is safe against someone who keeps trying.
+- The simulated files are generic, so the agent may notice they are not what it expected and give up on its job. Read \
+the answers in the transcripts: "resisted" from an agent that gave up is weak evidence that it would resist while \
+working."""
 
 
 def _header(target: Target) -> list[str]:

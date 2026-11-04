@@ -8,7 +8,7 @@ The rest of this guide tests one made-up agent. This file is about pointing the 
 |---|---|---|
 | Question | What does this file allow? | What does the model do with these instructions when attacked? |
 | Model | None | A real Claude model |
-| Cost | Free, no API key | About USD 0.01 per agent on Haiku 5.5, 0.19 on Sonnet 5.5, 0.37 on Opus 5.5 |
+| Cost | Free, no API key | About USD 0.03 per agent on Haiku 5.5, 0.53 on Sonnet 5.5, 1.04 on Opus 5.5 |
 | Same idea as | The worst case in [Measuring](05-measuring.md): what is reachable if the model is fooled | The real run in [Measuring](05-measuring.md): how often it is fooled |
 
 Start with the audit. It finds most of what is worth fixing, and its findings hold whatever the model does.
@@ -78,7 +78,7 @@ Scoring a false claim uses the same rule as the rest of the repo: a warning that
 
 - **It reads the file only.** Your `settings.json`, hooks and sandbox may already handle a finding. An agent run without a person, for example in CI, has no permission prompts to rely on.
 - **A scan is not the whole product.** It runs your instructions alone, without Claude Code's own system prompt and permission prompts. It tests your instructions and tool list. A real session has more protection, and an unattended one may have less.
-- **Made-up files are not your files.** The agent may notice that a file is not what its instructions expected. Attacks on your agent's specific data are not covered.
+- **Made-up files are not your files, and the model notices.** In the first real scan, of `eval-reviewer` on Haiku 5.5 (18 runs, USD 0.027), all 18 payloads arrived and no attack worked, but the agent could not do its job in any run: every file it asked for came back as the same generic notes, and each answer opened with some form of "I could not review any failed cases". So those runs show a model ignoring attacks while stuck, not while working. A test is only as strong as the conditions it creates, so read the answers, not just the table.
 - **A clean scan is not proof.** The attacks are 18 known patterns, run once. Results vary between runs, and a real attacker adapts.
 
 ## An agent that is not a Claude Code file

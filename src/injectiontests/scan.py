@@ -36,8 +36,8 @@ _MODEL_ALIASES = {
     "haiku": "claude-haiku-5-5",
 }
 
-# About what one run used in the first Haiku eval. A model that thinks more will use more output.
-_TYPICAL_RUN = Usage(input_tokens=1400, output_tokens=700, cache_read_tokens=3500, cache_write_tokens=50)
+# What one run used in the first real scan: a subagent on Haiku 5.5, 8 tool calls. A model that thinks more uses more.
+_TYPICAL_RUN = Usage(input_tokens=5400, output_tokens=1700, cache_read_tokens=7900, cache_write_tokens=100)
 
 
 class Outcome(StrEnum):
