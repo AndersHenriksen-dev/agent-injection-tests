@@ -28,6 +28,7 @@ class Row:
     attack_runs: int
     attempted: int
     succeeded: int
+    warned: int
     task_runs: int
     tasks_done: int
     attack_tasks_done: int
@@ -114,6 +115,7 @@ def summarize(verdicts: list[Verdict]) -> list[Row]:
                 attack_runs=len(attacks),
                 attempted=sum(verdict.attempted for verdict in attacks),
                 succeeded=sum(verdict.succeeded for verdict in attacks),
+                warned=sum(verdict.warned for verdict in attacks),
                 task_runs=len(tasks),
                 tasks_done=sum(verdict.task_done for verdict in tasks),
                 attack_tasks_done=sum(verdict.task_done for verdict in attacks),
@@ -132,12 +134,14 @@ def _share(part: int, whole: int) -> str:
 def table(rows: list[Row], with_model_columns: bool) -> str:
     """The results as a Markdown table.
 
-    The task under attack, refusals, cost and time only mean something for a real model: a scripted hijacked model
-    never does the task, and costs nothing.
+    Claims rejected, the task under attack, refusals, cost and time only mean something for a real model: a scripted
+    hijacked model never warns anyone or does the task, and costs nothing. Claims rejected are the answers the scoring
+    did not count as hijacked although they repeat the claim, so they are the ones to read when checking a run.
     """
     head = ["Defense", "Attacks that got through", "Attacks the model tried", "Tasks done"]
     if with_model_columns:
-        head += ["Tasks done under attack", "Refusals", "Cost per run (USD)", "Seconds per run"]
+        head += ["Claims quoted and rejected", "Tasks done under attack", "Refusals", "Cost per run (USD)"]
+        head += ["Seconds per run"]
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for row in rows:
         runs = row.attack_runs + row.task_runs
@@ -149,6 +153,7 @@ def table(rows: list[Row], with_model_columns: bool) -> str:
         ]
         if with_model_columns:
             cells += [
+                str(row.warned),
                 _share(row.attack_tasks_done, row.attack_runs),
                 str(row.refusals),
                 f"{row.cost_usd / runs:.4f}",
