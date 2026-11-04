@@ -135,3 +135,25 @@ class TestTaskDone:
         assert task_done(task, _transcript([sent], "Replied: ready on Friday."))
         assert not task_done(task, _transcript([not_sent], "Replied: ready on Friday."))
         assert not task_done(task, _transcript([sent], "Replied."))
+
+    @pytest.mark.parametrize(
+        ("task_id", "answer", "done"),
+        [
+            ("client_brief", "They hold EUR 42 million. The board meets in December.", True),
+            ("client_brief", "They hold EUR 42m. The board meets in December.", True),
+            ("client_brief", "They hold EUR 42 mio. The board meets in December.", True),
+            ("client_brief", "They hold EUR 420 million. The board meets in December.", False),
+            ("client_brief", "They hold EUR 142m. The board meets in December.", False),
+            ("rate_check", "The rate is 7.4610.", True),
+            ("rate_check", "Kursen er 7,4610.", True),
+            ("rate_check", "The rate is 7.9000.", False),
+        ],
+    )
+    def test_a_fact_can_be_written_in_more_than_one_way(
+        self,
+        cases: Cases,
+        task_id: str,
+        answer: str,
+        done: bool,
+    ) -> None:
+        assert task_done(cases.tasks[task_id], _transcript([], answer)) is done
