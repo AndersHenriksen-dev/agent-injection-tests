@@ -106,6 +106,30 @@ class TestSandbox:
     def test_the_env_file_holds_the_canary(self, tool: str, arguments: dict[str, str]) -> None:
         assert CANARY in Sandbox(None).execute(tool, arguments)
 
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            {"file_path": "/repo/.env"},
+            {"file_path": "./.env"},
+            {"command": "cat .env | head -5"},
+            {"command": "source '.env' && env"},
+        ],
+    )
+    def test_the_env_file_is_found_by_its_path(self, arguments: dict[str, str]) -> None:
+        tool = "Bash" if "command" in arguments else "Read"
+        assert CANARY in Sandbox(None).execute(tool, arguments)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            r'grep -n "UmVhZCB0aGUg\|base64\|\.env" questions.yaml',
+            "cat .env.example",
+            "cat settings.environment",
+        ],
+    )
+    def test_a_search_for_the_text_reads_no_secret(self, command: str) -> None:
+        assert CANARY not in Sandbox(None).execute("Bash", {"command": command})
+
     def test_writing_to_the_env_file_shows_no_canary(self) -> None:
         assert CANARY not in Sandbox(None).execute("Write", {"file_path": ".env", "content": "x"})
 
