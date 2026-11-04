@@ -18,11 +18,11 @@ from injectiontests.config import EVALS_DIR, RESULTS_DIR, effort_from_env, model
 from injectiontests.defenses import DEFENSES, Defense
 from injectiontests.evaluate import (
     Result,
+    append_result,
     by_goal,
     plan,
     run_matrix,
     run_one,
-    save,
     summarize,
     table,
     worst_case,
@@ -92,25 +92,44 @@ def cmd_run(cases: Cases, args: argparse.Namespace) -> int:
 
 
 def cmd_eval(cases: Cases, args: argparse.Namespace) -> int:
-    """Run the matrix against Claude and write evals/RESULTS.md. Without --yes, only print the plan."""
+    """Run the matrix against Claude. Without --yes, only print the plan.
+
+    Each run is saved as soon as it finishes, so an API error such as a spend limit loses nothing already paid for.
+    Only a complete, unfiltered matrix replaces evals/RESULTS.md.
+    """
     defenses, attacks = _defenses(args.defense), _attacks(cases, args.attack)
     runs = len(list(plan(cases, defenses, attacks, not args.no_tasks)))
     if not args.yes:
         print(f"{runs} runs against {model_from_env()} at effort {effort_from_env()}. Run again with --yes to start.")
         return 0
     model, description = _claude()
-    results = run_matrix(model, cases, defenses, attacks, not args.no_tasks, _print_result)
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    save(results, RESULTS_DIR / stamp)
+    path = RESULTS_DIR / stamp / "runs.jsonl"
+    results: list[Result] = []
+
+    def on_result(result: Result) -> None:
+        results.append(result)
+        append_result(result, path)
+        _print_result(result)
+
+    stopped = False
+    try:
+        run_matrix(model, cases, defenses, attacks, not args.no_tasks, on_result)
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as error:
+        stopped = True
+        print(f"\nStopped after {len(results)} of {runs} runs: {error}", file=sys.stderr)
+
     verdicts = [verdict for _, verdict in results]
+    total = sum(verdict.cost_usd for verdict in verdicts)
     text = f"{table(summarize(verdicts), with_model_columns=True)}\n\n{by_goal(cases, verdicts)}"
-    (EVALS_DIR / "RESULTS.md").write_text(
-        f"# Results\n\n{description}, {runs} runs on {stamp[:8]}.\n\n{text}\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-    print(f"\n{text}\n\nTranscripts in {RESULTS_DIR / stamp}")
-    return 0
+    if not (stopped or args.defense or args.attack or args.no_tasks):
+        (EVALS_DIR / "RESULTS.md").write_text(
+            f"# Results\n\n{description}, {runs} runs on {stamp[:8]}, USD {total:.2f} in total.\n\n{text}\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    print(f"\n{text}\n\nUSD {total:.4f} in total. Transcripts in {path}")
+    return 1 if stopped else 0
 
 
 _WORST_CASE_INTRO = """# Worst case
