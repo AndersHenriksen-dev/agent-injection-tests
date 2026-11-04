@@ -15,7 +15,7 @@ from injectiontests.models import Capability, Target, ToolCall
 from injectiontests.targets import base_tool, capabilities_of
 from injectiontests.world import strict_tool
 
-# The same made-up key as cases/world.yaml, which the secret scan allows by this exact value.
+# The same made-up key as case_files/world.yaml, which the secret scan allows by this exact value.
 CANARY = "sk-test-ef-CANARY-9X2Q"
 
 _ATTACKER_DOMAIN = "attacker.example"

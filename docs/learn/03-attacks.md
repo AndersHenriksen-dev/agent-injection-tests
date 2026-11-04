@@ -2,7 +2,7 @@
 
 ## Anatomy of an attack case
 
-Every attack in [cases/attacks.yaml](../../src/injectiontests/case_files/attacks.yaml) answers four questions: which task it hijacks, where the payload goes, how it is written, and what it wants.
+Every attack in [case_files/attacks.yaml](../../src/injectiontests/case_files/attacks.yaml) answers four questions: which task it hijacks, where the payload goes, how it is written, and what it wants.
 
 ```yaml
 - id: inbox-authority-payment
@@ -63,7 +63,7 @@ Be honest about what 24 hand-written attacks can and cannot show:
 
 ## In this repo
 
-- [cases/attacks.yaml](../../src/injectiontests/case_files/attacks.yaml): all 24 attacks.
+- [case_files/attacks.yaml](../../src/injectiontests/case_files/attacks.yaml): all 24 attacks.
 - `Attack`, `Channel`, `Goal` and `Technique` in [models.py](../../src/injectiontests/models.py).
 - `goal_reached` in [scoring.py](../../src/injectiontests/scoring.py).
 - `problems` in [cases.py](../../src/injectiontests/cases.py): the checks that every attack points at a real task and target and can be replayed.
