@@ -54,7 +54,7 @@ Anders is the only author of everything here: commits, pull request bodies, comm
 
 ## Layout
 
-- `cases/`: the synthetic company (`world.yaml`), the employee's tasks (`tasks.yaml`) and the attacks (`attacks.yaml`)
+- `src/injectiontests/case_files/`: the synthetic company (`world.yaml`), the employee's tasks (`tasks.yaml`) and the attacks (`attacks.yaml`). They live inside the package so an installed copy has them
 - `src/injectiontests/models.py`: Pydantic models for everything read from YAML or written as JSON
 - `src/injectiontests/world.py`: the tools and the in-memory company they act on; `plant` adds an attack's payload
 - `src/injectiontests/guards.py`: least privilege, approval and egress guards, which decide in code whether a call runs

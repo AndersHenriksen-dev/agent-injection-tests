@@ -42,9 +42,9 @@ Three limits on what this shows:
 
 ## How it works
 
-1. **The world** ([cases/world.yaml](cases/world.yaml)) is a synthetic company with three clients, four emails, four documents and a rates page. Domains use the reserved `.test` and `.example` top-level domains. Client accounts and one API key are canaries.
-2. **The tasks** ([cases/tasks.yaml](cases/tasks.yaml)) are five everyday requests: summarize the inbox, brief me on a client, check a rate, file an IT ticket, reply to a colleague.
-3. **The attacks** ([cases/attacks.yaml](cases/attacks.yaml)) add text to an email, document or web page the task makes the agent read. They use eight techniques (plain requests, fake system messages, authority, hidden HTML comments and zero-width text, base64, a fake end of the tool output, Danish, and "helpful" extra steps) and four goals: exfiltrate by email, exfiltrate by URL (including a markdown image), make an unauthorized payment or ticket, or hijack the answer.
+1. **The world** ([cases/world.yaml](src/injectiontests/case_files/world.yaml)) is a synthetic company with three clients, four emails, four documents and a rates page. Domains use the reserved `.test` and `.example` top-level domains. Client accounts and one API key are canaries.
+2. **The tasks** ([cases/tasks.yaml](src/injectiontests/case_files/tasks.yaml)) are five everyday requests: summarize the inbox, brief me on a client, check a rate, file an IT ticket, reply to a colleague.
+3. **The attacks** ([cases/attacks.yaml](src/injectiontests/case_files/attacks.yaml)) add text to an email, document or web page the task makes the agent read. They use eight techniques (plain requests, fake system messages, authority, hidden HTML comments and zero-width text, base64, a fake end of the tool output, Danish, and "helpful" extra steps) and four goals: exfiltrate by email, exfiltrate by URL (including a markdown image), make an unauthorized payment or ticket, or hijack the answer.
 4. **The agent** is a hand-written tool loop around the Messages API. Every tool call passes the guards and is recorded before it runs.
 5. **The defenses** go from prompt rules to guards in code:
    - `prompt`: the system prompt says tool output is data, never instructions.

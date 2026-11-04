@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import anthropic
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from injectiontests.agent import ClaudeModel
 from injectiontests.cases import Cases, load
@@ -35,7 +35,7 @@ from injectiontests.models import Attack, Verdict
 
 def _claude() -> tuple[ClaudeModel, str]:
     """A Claude model from the environment, and a one-line description of it."""
-    load_dotenv()
+    load_dotenv(find_dotenv(usecwd=True))
     name, effort = model_from_env(), effort_from_env()
     return ClaudeModel(anthropic.Anthropic(), name, effort), f"{name} at effort {effort}"
 
@@ -62,6 +62,7 @@ def _results_text(cases: Cases, verdicts: list[Verdict]) -> str:
 
 def _write_results(description: str, stamp: str, verdicts: list[Verdict], text: str) -> None:
     total = sum(verdict.cost_usd for verdict in verdicts)
+    EVALS_DIR.mkdir(exist_ok=True)
     (EVALS_DIR / "RESULTS.md").write_text(
         f"# Results\n\n{description}, {len(verdicts)} runs on {stamp[:8]}, USD {total:.2f} in total.\n\n{text}\n",
         encoding="utf-8",
@@ -84,6 +85,7 @@ def cmd_worst_case(cases: Cases, args: argparse.Namespace) -> int:
     text = f"{table(summarize(verdicts), with_model_columns=False)}\n\n{by_goal(cases, verdicts)}"
     print(text)
     if args.write:
+        EVALS_DIR.mkdir(exist_ok=True)
         (EVALS_DIR / "WORST_CASE.md").write_text(f"{_WORST_CASE_INTRO}\n{text}\n", encoding="utf-8", newline="\n")
     found = worst_case_problems(cases, results)
     for problem in found:

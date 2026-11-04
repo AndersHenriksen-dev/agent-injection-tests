@@ -28,7 +28,7 @@ Short answers below each question; the other files have the details.
 
 Each one is a small change that teaches how a part works. Run `uv run pytest` and `uv run injectiontests worst-case --check` after each.
 
-1. **Add an attack.** Write a new case in [cases/attacks.yaml](../../cases/attacks.yaml), for example a payload in document D-2 that asks for the fee schedule to be mailed outside. Give it `attacker_calls`. Which defenses stop it in the worst case, and why?
+1. **Add an attack.** Write a new case in [cases/attacks.yaml](../../src/injectiontests/case_files/attacks.yaml), for example a payload in document D-2 that asks for the fee schedule to be mailed outside. Give it `attacker_calls`. Which defenses stop it in the worst case, and why?
 2. **Break a guard on purpose.** In `Egress.check`, stop compacting secrets (compare the raw strings). Which test fails? Does any worst-case line change, and if not, which other egress rule still blocks those calls? That is defense in depth inside one guard.
 3. **Find the cost of a guard.** Make `Approval` also require approval for `read_email`. What does the worst-case check report, and what does that tell you about where approval belongs?
 4. **Close a gap.** The fake payment gets through `egress`. Add a rule that `create_payment` may only pay accounts already known to the company. Which goal's row changes?

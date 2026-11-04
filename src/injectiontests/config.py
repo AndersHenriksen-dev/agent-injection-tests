@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 from typing import Literal
 
-ROOT = Path(__file__).resolve().parents[2]
-CASES_DIR = ROOT / "cases"
-RESULTS_DIR = ROOT / "results"
-EVALS_DIR = ROOT / "evals"
+# Inside the package, so an installed copy has them. Output paths follow the folder the command runs from.
+CASES_DIR = Path(__file__).parent / "case_files"
+RESULTS_DIR = Path("results")
+EVALS_DIR = Path("evals")
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 

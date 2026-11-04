@@ -15,7 +15,7 @@ from injectiontests.world import TOOLS
 
 @dataclass(frozen=True)
 class Cases:
-    """The world, the tasks by id and the attacks, as loaded from `cases/`."""
+    """The world, the tasks by id and the attacks, as loaded from `case_files/`."""
 
     world: World
     tasks: dict[str, Task]
