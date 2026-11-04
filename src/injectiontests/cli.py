@@ -181,8 +181,19 @@ model does. Regenerate with `uv run injectiontests worst-case --write`.
 """
 
 
+_NO_API_KEY = """No API key found. A scan calls the Anthropic API, so set ANTHROPIC_API_KEY or put it in a .env file \
+in this folder. `injectiontests audit` needs no key."""
+
+
 def _targets_at(path: Path) -> list[Target]:
-    return [load_target(file) for file in find_target_files(path)]
+    """Every skill or agent at a path. A file it cannot read is reported and skipped, so it cannot stop the rest."""
+    targets: list[Target] = []
+    for file in find_target_files(path):
+        try:
+            targets.append(load_target(file))
+        except ValueError as error:
+            print(f"Skipping {file}: {error}", file=sys.stderr)
+    return targets
 
 
 def cmd_audit(_: Cases, args: argparse.Namespace) -> int:
@@ -217,12 +228,12 @@ def _scan_target(cases: Cases, target: Target, args: argparse.Namespace, stamp: 
     name = model_for(target, args.model, model_from_env())
     task = args.task or default_task(target)
     folder = SCAN_RESULTS_DIR / stamp
-    folder.mkdir(parents=True, exist_ok=True)
     safe_name = "".join(character if character.isalnum() or character in "-_" else "-" for character in target.name)
     results: list[AttackResult] = []
 
     def on_result(result: AttackResult) -> None:
         results.append(result)
+        folder.mkdir(parents=True, exist_ok=True)
         with (folder / f"{safe_name}.jsonl").open("a", encoding="utf-8") as file:
             file.write(result.transcript.model_dump_json() + "\n")
         print(f"{target.name:<24} {result.attack.id:<34} {result.outcome}  ${result.transcript.cost_usd:.4f}")
@@ -234,6 +245,7 @@ def _scan_target(cases: Cases, target: Target, args: argparse.Namespace, stamp: 
         stopped = True
         print(f"\nStopped {target.name} after {len(results)} runs: {error}", file=sys.stderr)
     report = scan_report(target, [*findings_from(results), *audit(target)], results, name, task)
+    folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{safe_name}.md"
     path.write_text(report, encoding="utf-8", newline="\n")
     print(f"\n{report}\nReport in {path}")
@@ -250,7 +262,14 @@ def cmd_scan(cases: Cases, args: argparse.Namespace) -> int:
         _print_scan_plan(cases, targets, args)
         return 0
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    outcomes = [_scan_target(cases, target, args, stamp) for target in targets]
+    try:
+        outcomes = [_scan_target(cases, target, args, stamp) for target in targets]
+    except TypeError as error:
+        # How the SDK reports that it found no credentials, before anything is sent.
+        if "authentication method" not in str(error):
+            raise
+        print(_NO_API_KEY, file=sys.stderr)
+        return 1
     return 1 if any(through or stopped for through, stopped in outcomes) else 0
 
 

@@ -328,6 +328,54 @@ class TestCommands:
         assert cli.cmd_audit(cases, argparse.Namespace(path=tmp_path, check=False)) == 1
         assert cli.cmd_scan(cases, self._scan_args(tmp_path)) == 1
 
+    def test_a_file_it_cannot_read_does_not_stop_the_rest(
+        self,
+        cases: Cases,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        folder = tmp_path / ".claude" / "agents"
+        folder.mkdir(parents=True)
+        (folder / "good.md").write_text("---\nname: good\ntools: Read\n---\nReview it.", encoding="utf-8")
+        (folder / "empty.md").write_text("---\nname: empty\n---\n", encoding="utf-8")
+        (folder / "binary.md").write_bytes(b"\xff\xfe not text")
+        assert cli.cmd_audit(cases, argparse.Namespace(path=tmp_path, check=False)) == 0
+        captured = capsys.readouterr()
+        assert "Injection report: good" in captured.out
+        assert "Skipping" in captured.err
+        assert "empty.md" in captured.err
+        assert "binary.md" in captured.err
+
+    def test_no_api_key_gets_a_plain_message_and_leaves_nothing_behind(
+        self,
+        cases: Cases,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        class NoCredentials(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                raise TypeError('"Could not resolve authentication method. Expected one of api_key, auth_token"')
+
+        self._use(monkeypatch, tmp_path, NoCredentials([], ""))
+        assert cli.cmd_scan(cases, self._scan_args(self._file(tmp_path))) == 1
+        assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
+        assert not (tmp_path / "out").exists()
+
+    def test_any_other_type_error_is_still_a_bug(
+        self,
+        cases: Cases,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class Broken(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                raise TypeError("something else")
+
+        self._use(monkeypatch, tmp_path, Broken([], ""))
+        with pytest.raises(TypeError, match="something else"):
+            cli.cmd_scan(cases, self._scan_args(self._file(tmp_path)))
+
     def test_scan_without_yes_only_prints_the_plan(
         self,
         cases: Cases,

@@ -183,7 +183,7 @@ def _is_target_file(file: Path) -> bool:
     if not {"agents", "commands"} & set(parts) or file.name.lower() == "readme.md":
         return False
     # Outside .claude, as in a plugin, only frontmatter tells an agent from a document in a folder named `agents`.
-    return ".claude" in parts or file.read_text(encoding="utf-8").startswith("---")
+    return ".claude" in parts or file.read_text(encoding="utf-8", errors="ignore").startswith("---")
 
 
 def find_target_files(path: Path) -> list[Path]:
