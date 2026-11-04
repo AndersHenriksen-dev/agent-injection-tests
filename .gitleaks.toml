@@ -1,0 +1,10 @@
+# The default rules, except for the made-up API key that cases/world.yaml plants as a canary. It is listed by exact
+# value, not by folder, so a real key in the same files is still caught.
+title = "agent-injection-tests"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The canary API key in cases/world.yaml, which is not a credential."
+regexes = ['''^sk\-test\-ef\-CANARY\-9X2Q$''']
