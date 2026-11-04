@@ -15,9 +15,9 @@ The model never runs anything. It only asks. Everything that runs, runs in your 
 
 ## The loop in this repo, step by step
 
-`run()` in [agent.py](../../src/injectiontests/agent.py) does one run of one task, with or without an attack, under one defense:
+`run()` in [agent.py](../../src/injectiontests/lib/fund_agent/agent.py) does one run of one task, with or without an attack, under one defense:
 
-1. **Plant the attack.** `plant()` in [world.py](../../src/injectiontests/world.py) copies the world and adds the attack's payload to the end of one email, document or page. The original world is never changed.
+1. **Plant the attack.** `plant()` in [world.py](../../src/injectiontests/lib/fund_agent/world.py) copies the world and adds the attack's payload to the end of one email, document or page. The original world is never changed.
 2. **Set up the run.** A `Workspace` holds the planted world and records what the write tools do. `guards_for()` picks the guards for the defense, `offered_tools()` the tools the model may see, and `system_prompt()` the prompt.
 3. **Ask the model.** `model.respond()` sends the system prompt, tools and conversation so far.
 4. **Handle a refusal.** If `stop_reason` is `"refusal"`, the run stops and is recorded as refused.
@@ -62,6 +62,8 @@ Under both, the attack counts as *attempted*. Only under `none` does it *succeed
 
 ## In this repo
 
-- [agent.py](../../src/injectiontests/agent.py): `run`, `handle_tool_use`, `ClaudeModel`, `ScriptedModel`, `cost_usd`.
-- [world.py](../../src/injectiontests/world.py): the tool definitions (`TOOLS`), `plant` and `Workspace`.
-- [config.py](../../src/injectiontests/config.py): model, effort, turn limit and prices.
+- [agent.py](../../src/injectiontests/lib/fund_agent/agent.py): `run`, `handle_tool_use`.
+- [loop.py](../../src/injectiontests/lib/shared/loop.py): the loop itself (`run_turns`), `ClaudeModel`, `ScriptedModel`, `cost_usd`.
+- [world.py](../../src/injectiontests/lib/fund_agent/world.py): the tool definitions (`TOOLS`), `plant` and `Workspace`.
+- [settings.yaml](../../src/injectiontests/config/shared/settings.yaml): model, effort, turn limit and prices.
+- [world.yaml](../../src/injectiontests/config/fund_agent/world.yaml): the descriptions of the tools.

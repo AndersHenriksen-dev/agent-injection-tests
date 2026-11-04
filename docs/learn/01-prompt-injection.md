@@ -45,6 +45,6 @@ So the useful question is not "can the model be fooled?" (assume it can) but "**
 
 ## In this repo
 
-- [case_files/world.yaml](../../src/injectiontests/case_files/world.yaml): the private data and the untrusted content.
-- `SIDE_EFFECT_TOOLS` and `OUTBOUND_TOOLS` in [world.py](../../src/injectiontests/world.py): the ways out.
+- [company.yaml](../../src/injectiontests/config/fund_agent/cases/company.yaml): the private data and the untrusted content.
+- `SIDE_EFFECT_TOOLS` and `OUTBOUND_TOOLS` in [world.py](../../src/injectiontests/lib/fund_agent/world.py): the ways out.
 - [decisions.md](../decisions.md), entry 1: why every run records both what the model tried and what actually ran.
