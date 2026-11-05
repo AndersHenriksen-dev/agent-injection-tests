@@ -34,7 +34,14 @@ class FailsAfter:
 
 
 def _args(**overrides: object) -> argparse.Namespace:
-    values: dict[str, object] = {"defense": None, "attack": None, "no_tasks": False, "yes": True}
+    values: dict[str, object] = {
+        "defense": None,
+        "attack": None,
+        "no_tasks": False,
+        "yes": True,
+        "passes": 1,
+        "resume": None,
+    }
     return argparse.Namespace(**{**values, **overrides})
 
 
@@ -60,7 +67,7 @@ class TestEval:
     ) -> None:
         _use(monkeypatch, tmp_path, FailsAfter(0))
         assert commands.cmd_eval(cases, _args(yes=False)) == 0
-        assert "203 runs" in capsys.readouterr().out
+        assert "266 runs" in capsys.readouterr().out
         assert not (tmp_path / "results").exists()
 
     def test_an_api_error_keeps_the_runs_already_paid_for(
@@ -69,6 +76,7 @@ class TestEval:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
+        monkeypatch.setattr("injectiontests.lib.fund_agent.evaluate._CONFIG.parallel_runs", 1)
         _use(monkeypatch, tmp_path, FailsAfter(3))
         assert commands.cmd_eval(cases, _args()) == 1
         assert len(_saved(tmp_path)) == 3
@@ -93,10 +101,98 @@ class TestEval:
     ) -> None:
         _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
         assert commands.cmd_eval(cases, _args()) == 0
-        assert len(_saved(tmp_path)) == 203
+        assert len(_saved(tmp_path)) == 266
         results = (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
-        assert "test model, 203 runs" in results
+        assert "test model, 266 runs" in results
         assert "USD 0.00 in total" in results
+
+
+class TestResults:
+    def test_the_table_names_the_warnings_it_excused(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
+        assert commands.cmd_eval(cases, _args()) == 0
+        assert "Claims quoted and rejected or doubted" in (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
+
+
+class TestResume:
+    def test_it_finishes_a_stopped_run_without_repeating_what_was_saved(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setattr("injectiontests.lib.fund_agent.evaluate._CONFIG.parallel_runs", 1)
+        _use(monkeypatch, tmp_path, FailsAfter(3))
+        assert commands.cmd_eval(cases, _args()) == 1
+        path = next((tmp_path / "results").glob("*/runs.jsonl"))
+
+        calls: list[str] = []
+
+        class Counts(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                calls.append(system)
+                return super().respond(system=system, tools=tools, messages=messages)
+
+        _use(monkeypatch, tmp_path, Counts([], "ok"))
+        assert commands.cmd_eval(cases, _args(resume=path)) == 0
+        assert len(calls) == 263
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        runs = [(r["transcript"]["task"], r["transcript"]["attack"], r["transcript"]["defense"]) for r in rows]
+        assert len(runs) == 266
+        assert len(set(runs)) == 266
+        assert "266 runs" in (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
+
+
+class TestPasses:
+    def test_each_pass_is_kept_and_counted(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
+        assert commands.cmd_eval(cases, _args(passes=2)) == 0
+        assert len(_saved(tmp_path)) == 532
+        results = (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
+        assert "532 runs in 2 passes" in results
+        assert "Got through in each pass" in results
+        assert "0, 0" in results
+
+    def test_one_pass_shows_no_spread(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
+        assert commands.cmd_eval(cases, _args()) == 0
+        assert "Got through in each pass" not in (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
+
+    def test_the_results_compare_techniques(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
+        assert commands.cmd_eval(cases, _args()) == 0
+        assert "| plausible_data | 0 of 7 |" in (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
+
+    def test_rescoring_two_passes_counts_as_complete(
+        self,
+        cases: Cases,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        _use(monkeypatch, tmp_path, ScriptedModel([], "ok"))
+        commands.cmd_eval(cases, _args(passes=2))
+        path = next((tmp_path / "results").glob("*/runs.jsonl"))
+        assert commands.cmd_rescore(cases, argparse.Namespace(path=path, write=True)) == 0
 
 
 class TestRescore:
@@ -131,7 +227,7 @@ class TestRescore:
         (tmp_path / "RESULTS.md").unlink()
         assert commands.cmd_rescore(cases, argparse.Namespace(path=path, write=True)) == 0
         results = (tmp_path / "RESULTS.md").read_text(encoding="utf-8")
-        assert f"scripted at effort medium, 203 runs on {path.parent.name[:8]}" in results
+        assert f"scripted at effort medium, 266 runs on {path.parent.name[:8]}" in results
 
     def test_without_write_it_only_prints(
         self,

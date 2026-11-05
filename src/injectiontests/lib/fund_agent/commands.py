@@ -17,6 +17,7 @@ from injectiontests.lib.fund_agent.evaluate import (
     Result,
     append_result,
     by_goal,
+    by_technique,
     plan,
     read_results,
     run_matrix,
@@ -64,14 +65,21 @@ def _print_result(result: Result) -> None:
 
 
 def _results_text(cases: Cases, verdicts: list[Verdict]) -> str:
-    return f"{table(summarize(verdicts), with_model_columns=True)}\n\n{by_goal(cases, verdicts)}"
+    rows = table(summarize(verdicts), with_model_columns=True)
+    return f"{rows}\n\n{by_goal(cases, verdicts)}\n\n{by_technique(cases, verdicts)}"
+
+
+def _passes_in(verdicts: list[Verdict]) -> int:
+    return len({verdict.pass_number for verdict in verdicts})
 
 
 def _write_results(description: str, stamp: str, verdicts: list[Verdict], text: str) -> None:
     total = sum(verdict.cost_usd for verdict in verdicts)
+    passes = _passes_in(verdicts)
+    runs = f"{len(verdicts)} runs in {passes} passes" if passes > 1 else f"{len(verdicts)} runs"
     EVALS_DIR.mkdir(exist_ok=True)
     (EVALS_DIR / "RESULTS.md").write_text(
-        f"# Results\n\n{description}, {len(verdicts)} runs on {stamp[:8]}, USD {total:.2f} in total.\n\n{text}\n",
+        f"# Results\n\n{description}, {runs} on {stamp[:8]}, USD {total:.2f} in total.\n\n{text}\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -118,18 +126,20 @@ def cmd_run(cases: Cases, args: argparse.Namespace) -> int:
 def cmd_eval(cases: Cases, args: argparse.Namespace) -> int:
     """Run the matrix against Claude. Without --yes, only print the plan.
 
-    Each run is saved as soon as it finishes, so an API error such as a spend limit loses nothing already paid for.
-    Only a complete, unfiltered matrix replaces evals/RESULTS.md.
+    Each run is saved as soon as it finishes, so an API error such as a spend limit loses nothing already paid for, and
+    --resume carries on from a saved file without paying for its runs again. Only a complete, unfiltered matrix replaces
+    evals/RESULTS.md.
     """
     defenses, attacks = _defenses(args.defense), _attacks(cases, args.attack)
-    runs = len(list(plan(cases, defenses, attacks, not args.no_tasks)))
+    runs = args.passes * len(list(plan(cases, defenses, attacks, not args.no_tasks)))
     if not args.yes:
         print(f"{runs} runs against {model_from_env()} at effort {effort_from_env()}. Run again with --yes to start.")
         return 0
     model, description = _claude()
-    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    path = RESULTS_DIR / stamp / "runs.jsonl"
-    results: list[Result] = []
+    path = args.resume or RESULTS_DIR / datetime.now(UTC).strftime("%Y%m%d-%H%M%S") / "runs.jsonl"
+    stamp = path.parent.name
+    results: list[Result] = read_results(path, cases) if args.resume else []
+    saved = frozenset((t.task, t.attack, t.defense, t.pass_number) for t, _ in results)
 
     def on_result(result: Result) -> None:
         results.append(result)
@@ -138,7 +148,7 @@ def cmd_eval(cases: Cases, args: argparse.Namespace) -> int:
 
     stopped = False
     try:
-        run_matrix(model, cases, defenses, attacks, not args.no_tasks, on_result)
+        run_matrix(model, cases, defenses, attacks, not args.no_tasks, on_result, args.passes, saved)
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as error:
         stopped = True
         print(f"\nStopped after {len(results)} of {runs} runs: {error}", file=sys.stderr)
@@ -163,7 +173,8 @@ def cmd_rescore(cases: Cases, args: argparse.Namespace) -> int:
     print(text)
     if not args.write:
         return 0
-    if len(results) != len(list(plan(cases, list(DEFENSES.values()), cases.attacks, with_tasks=True))):
+    matrix = len(list(plan(cases, list(DEFENSES.values()), cases.attacks, with_tasks=True)))
+    if len(results) != matrix * _passes_in(verdicts):
         print(f"{args.path} is not a complete matrix, so evals/RESULTS.md is unchanged.", file=sys.stderr)
         return 1
     _write_results(f"{results[0][0].model} at effort {effort_from_env()}", args.path.parent.name, verdicts, text)

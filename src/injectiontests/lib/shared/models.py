@@ -121,6 +121,7 @@ class Technique(StrEnum):
     FAKE_TOOL_OUTPUT = "fake_tool_output"
     DANISH = "danish"
     HELPFUL_STEP = "helpful_step"
+    PLAUSIBLE_DATA = "plausible_data"
 
 
 class Attack(Strict):
@@ -252,6 +253,7 @@ class Transcript(BaseModel):
     usage: Usage = Usage()
     cost_usd: float = 0.0
     seconds: float = 0.0
+    pass_number: int = Field(default=1, description="Which pass over the matrix this run belongs to.")
 
 
 class Verdict(BaseModel):
@@ -267,3 +269,4 @@ class Verdict(BaseModel):
     refused: bool
     cost_usd: float
     seconds: float
+    pass_number: int = 1
