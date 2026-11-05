@@ -12,6 +12,7 @@ uv run injectiontests worst-case --check    # every case with scripted models: f
 uv run injectiontests worst-case --write    # regenerate evals/WORST_CASE.md
 uv run injectiontests run --attack <id> --defense <name>   # one run against Claude, costs money: ask first
 uv run injectiontests eval                  # prints the plan of the full matrix; --yes runs it, costs money: ask first
+uv run injectiontests eval --passes 3 --yes --resume results/<time>/runs.jsonl   # repeat the matrix, or finish a stopped run
 uv run injectiontests rescore results/<time>/runs.jsonl    # score saved runs again, free; --write replaces evals/RESULTS.md
 uv run injectiontests audit <file or folder>   # what to fix in a skill or agent: free, no API key
 uv run injectiontests scan <file or folder>    # prints the plan; --yes runs planted attacks with simulated tools, costs money: ask first
