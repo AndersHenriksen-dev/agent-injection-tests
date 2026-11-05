@@ -12,8 +12,10 @@ import anthropic
 import httpx2
 import pytest
 from anthropic.types import Message, MessageParam, ToolParam
+from anthropic.types import Usage as AnthropicUsage
 
 from injectiontests.lib.existing_agents import commands
+from injectiontests.lib.existing_agents import sandbox as sandbox_module
 from injectiontests.lib.existing_agents.attacks import attack_worked, load_attacks
 from injectiontests.lib.existing_agents.report import audit_report, scan_report
 from injectiontests.lib.existing_agents.sandbox import CANARY, OutputWriter, Sandbox, ToolEmulator, offered_tools
@@ -42,6 +44,10 @@ from injectiontests.lib.shared.models import (
 
 READ = PlannedCall(tool="Read", arguments={"file_path": "docs/notes.md"})
 ATTACKS = load_attacks()
+
+
+def load_sandbox_config_sheet_request() -> str:
+    return sandbox_module._CONFIG.sheet_request
 
 
 def _target(**overrides: object) -> Target:
@@ -519,7 +525,7 @@ class TestEmulator:
         assert "Reviews eval failures." in model.systems[0]
         assert "Read evals/answers.json." in model.systems[0]
         assert "Sort the failures." in model.systems[0]
-        assert "evals/answers.json" in model.prompts[0]
+        assert "evals/answers.json" in model.prompts[-1]
 
     def test_it_is_told_not_to_plant_anything_itself(self) -> None:
         model = RecordingModel()
@@ -531,15 +537,42 @@ class TestEmulator:
         emulator = self._emulator(model)
         first = emulator.output_for("Read", {"file_path": "a.md"})
         assert emulator.output_for("Read", {"file_path": "a.md"}) == first
-        assert len(model.prompts) == 1
+        assert len(model.prompts) == 2  # The project sheet, and the one call.
 
     def test_later_calls_see_earlier_output_to_stay_consistent(self) -> None:
         model = RecordingModel("A file list.")
         emulator = self._emulator(model)
         emulator.output_for("Glob", {"pattern": "**/*"})
         emulator.output_for("Read", {"file_path": "a.md"})
-        assert "A file list." in model.prompts[1]
-        assert "**/*" in model.prompts[1]
+        assert "A file list." in model.prompts[2]
+        assert "**/*" in model.prompts[2]
+
+    def test_one_project_sheet_is_written_and_every_call_is_held_to_it(self) -> None:
+        model = RecordingModel("The sheet says q10 failed.")
+        emulator = self._emulator(model)
+        emulator.output_for("Read", {"file_path": "a.md"})
+        emulator.output_for("Bash", {"command": "cat a.md"})
+        assert model.prompts[0] == load_sandbox_config_sheet_request()
+        assert sum(prompt == model.prompts[0] for prompt in model.prompts) == 1
+        assert "<project_sheet>" not in model.systems[0]
+        for system in model.systems[1:]:
+            assert "<project_sheet>\nThe sheet says q10 failed.\n</project_sheet>" in system
+
+    def test_without_a_sheet_the_calls_still_work(self) -> None:
+        model = RecordingModel("")
+        emulator = self._emulator(model)
+        emulator.output_for("Read", {"file_path": "a.md"})
+        assert "<project_sheet>" not in model.systems[-1]
+
+    def test_the_sheet_counts_towards_the_cost(self) -> None:
+        class Charges(ScriptedModel):
+            def respond(self, *, system: str, tools: list[ToolParam], messages: list[MessageParam]) -> Message:
+                message = super().respond(system=system, tools=tools, messages=messages)
+                return message.model_copy(update={"usage": AnthropicUsage(input_tokens=10, output_tokens=5)})
+
+        emulator = self._emulator(Charges([], "Text."))
+        emulator.output_for("Read", {"file_path": "a.md"})
+        assert emulator.usage.input_tokens == 20  # The sheet and the call.
 
     def test_an_empty_answer_falls_back_to_plain_text(self) -> None:
         assert "Project notes" in self._emulator(RecordingModel("")).output_for("Read", {"file_path": "a.md"})
@@ -577,7 +610,7 @@ class TestSandboxWithEmulator:
         second = PlannedCall(tool="Read", arguments={"file_path": "b.md"})
         result = run_attack(ScriptedModel([READ, second], "Fine."), _target(), attack, "Go.", emulator.output_for)
         assert result.outcome is Outcome.RESISTED
-        assert len(model.prompts) == 2
+        assert len(model.prompts) == 3  # The project sheet, and the two reads.
         for text in [*model.prompts, *model.systems]:
             assert "setup.attacker.example" not in text
 
@@ -607,7 +640,7 @@ class TestSandboxWithEmulator:
         model = RecordingModel()
         emulator = ToolEmulator(model, _target(), "Go.")
         scan(ScriptedModel([READ], "Fine."), _target(), ATTACKS, "Go.", lambda _: None, emulator.output_for)
-        assert len(model.prompts) == 1
+        assert len(model.prompts) == 2  # The project sheet, and the one call.
 
 
 class TestRunningTogether:
@@ -630,7 +663,7 @@ class TestRunningTogether:
         with ThreadPoolExecutor(max_workers=8) as pool:
             texts = list(pool.map(lambda _: emulator.output_for("Read", {"file_path": "a.md"}), range(8)))
         assert set(texts) == {"Made-up text."}
-        assert len(model.prompts) == 1
+        assert len(model.prompts) == 2  # The project sheet, and the one call.
 
     def test_an_api_error_stops_the_scan_and_passes_up(self) -> None:
         class Fails(ScriptedModel):

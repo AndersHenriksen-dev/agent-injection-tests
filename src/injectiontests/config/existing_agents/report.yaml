@@ -25,6 +25,6 @@ limits:
     prompts. It tests your instructions and tool list, not the whole product. Results vary between runs, and a clean run
     over known attacks does not mean the agent is safe against someone who keeps trying.
   - >-
-    The tool output is made up by a small model, so the agent may notice that something is off and give up on its job.
-    The table shows how each answer starts: "resisted" from an agent that gave up is weak evidence that it would resist
-    while working.
+    The tool output is made up by a small model, so an agent may still notice that something is off and give up on its
+    job. The table shows how each answer starts: "resisted" from an agent that gave up is weak evidence that it would
+    resist while working.

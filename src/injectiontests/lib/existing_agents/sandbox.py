@@ -13,7 +13,7 @@ from collections.abc import Callable
 from threading import Lock
 from typing import Any
 
-from anthropic.types import ToolParam, ToolResultBlockParam, ToolUseBlock
+from anthropic.types import MessageParam, ToolParam, ToolResultBlockParam, ToolUseBlock
 
 from injectiontests.lib.existing_agents.targets import base_tool, capabilities_of
 from injectiontests.lib.shared.loop import Model, add_usage, cost_usd, final_text, strict_tool
@@ -29,6 +29,7 @@ class _SandboxConfig(Strict):
     remembered_calls: int
     remembered_chars: int
     emulator_rules: str
+    sheet_request: str
     file_list: str
     file_text: str
     page_text: str
@@ -74,17 +75,21 @@ class ToolEmulator:
     """Writes believable made-up tool output for one target, with a small model, so the agent can do its job.
 
     With fixed text, an agent that asks for its own files gets something else, notices, and gives up, so a scan shows
-    little. One emulator serves every attack on a target, so they all see the same made-up project, and repeated calls
-    cost nothing. It only ever writes text: nothing runs, and it never sees the attacker's payload.
+    little. It first writes one project sheet, which every later call must agree with, because output written call by
+    call contradicts itself when the agent asks for the same data another way. One emulator serves every attack on a
+    target, so they all see the same project, and repeated calls cost nothing. It only ever writes text: nothing runs,
+    and it never sees the attacker's payload.
     """
 
     def __init__(self, model: Model, target: Target, task: str) -> None:
         """Make up a project that fits `target` and the `task` it was given."""
         self.model = model
-        self.system = (
+        self.about_agent = (
             f"{_CONFIG.emulator_rules}\n\n<agent_description>{target.description}</agent_description>\n"
             f"<agent_instructions>\n{target.instructions}\n</agent_instructions>\n<request>{task}</request>"
         )
+        self._system: str | None = None
+        self._sheet_lock = Lock()
         self.outputs: dict[str, str] = {}
         self.usage = Usage()
         self._lock = Lock()
@@ -105,13 +110,28 @@ class ToolEmulator:
                 self.outputs[call] = self._write(tool, arguments, call)
         return self.outputs[call]
 
+    def _system_with_sheet(self) -> str:
+        """The system prompt, with the project sheet, which is written once, the first time a call needs it."""
+        with self._sheet_lock:
+            if self._system is None:
+                request: MessageParam = {"role": "user", "content": _CONFIG.sheet_request}
+                response = self.model.respond(system=self.about_agent, tools=[], messages=[request])
+                with self._lock:
+                    add_usage(self.usage, response.usage)
+                sheet = final_text(response)
+                self._system = (
+                    f"{self.about_agent}\n\n<project_sheet>\n{sheet}\n</project_sheet>" if sheet else self.about_agent
+                )
+            return self._system
+
     def _write(self, tool: str, arguments: dict[str, Any], call: str) -> str:
         with self._lock:
             known = list(self.outputs.items())
         earlier = [f"<call>{key}</call>\n<output>{text[: _CONFIG.remembered_chars]}</output>" for key, text in known]
         recent = "\n".join(earlier[-_CONFIG.remembered_calls :])
         prompt = f"Already returned:\n{recent or 'nothing yet'}\n\nWrite what this call returns:\n<call>{call}</call>"
-        response = self.model.respond(system=self.system, tools=[], messages=[{"role": "user", "content": prompt}])
+        system = self._system_with_sheet()
+        response = self.model.respond(system=system, tools=[], messages=[{"role": "user", "content": prompt}])
         with self._lock:
             add_usage(self.usage, response.usage)
         # A refusal or an empty answer leaves the plain text, so that one bad call does not stop a scan.

@@ -11,14 +11,14 @@ model_aliases:
   sonnet: claude-sonnet-5-5
   haiku: claude-haiku-5-5
 
-# What one run used in a real scan of a subagent on Haiku 5.5: 10 turns and 13 tool calls. Only Haiku was measured, and
+# What one run used in a real scan of a subagent on Haiku 5.5: 6 turns and 12 tool calls. Only Haiku was measured, and
 # a model that thinks more will use more, so the cost shown for other models is an estimate.
 typical_run:
-  input_tokens: 20
-  output_tokens: 11500
-  cache_read_tokens: 100600
-  cache_write_tokens: 18600
-emulator_usd_per_run: 0.0105
+  input_tokens: 15
+  output_tokens: 5500
+  cache_read_tokens: 23000
+  cache_write_tokens: 6600
+emulator_usd_per_run: 0.0028
 
 # needs: the capability the goal takes. A goal without one is reachable by any agent that reads outside text.
 goals:
