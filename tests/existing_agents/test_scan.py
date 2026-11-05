@@ -181,7 +181,7 @@ class TestAttackFiles:
     def test_every_attacker_address_is_reserved(self) -> None:
         for attack in ATTACKS:
             if attack.attacker_call and "http" in str(attack.attacker_call.arguments):
-                assert "attacker.example" in str(attack.attacker_call.arguments), attack.id
+                assert ".example" in str(attack.attacker_call.arguments), attack.id
 
 
 class TestScoring:

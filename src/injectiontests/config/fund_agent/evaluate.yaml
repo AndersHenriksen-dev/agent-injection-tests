@@ -1,0 +1,4 @@
+# Read by lib/fund_agent/evaluate.py: how the study runs.
+
+# Runs share nothing, so several can go at once.
+parallel_runs: 4

@@ -59,6 +59,8 @@ def main() -> None:
     matrix.add_argument("--defense", nargs="*", choices=list(DEFENSES))
     matrix.add_argument("--attack", nargs="*")
     matrix.add_argument("--no-tasks", action="store_true", help="skip the runs without an attack")
+    matrix.add_argument("--passes", type=int, default=1, help="run the matrix this many times, to show the spread")
+    matrix.add_argument("--resume", type=Path, help="a runs.jsonl file to carry on from, skipping its runs")
     matrix.add_argument("--yes", action="store_true", help="start the paid runs")
     matrix.set_defaults(run=_with_cases(cmd_eval))
 

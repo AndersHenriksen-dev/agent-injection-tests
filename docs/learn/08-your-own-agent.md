@@ -8,7 +8,7 @@ The rest of this guide tests one made-up agent. This file is about pointing the 
 |---|---|---|
 | Question | What does this file allow? | What does the model do with these instructions when attacked? |
 | Model | None | A real Claude model |
-| Cost | Free, no API key | About USD 0.12 per agent on Haiku 5.5, measured. An estimated 1.42 on Sonnet 5.5 and 2.71 on Opus 5.5 |
+| Cost | Free, no API key | About USD 0.21 per agent on Haiku 5.5, measured. An estimated 2.41 on Sonnet 5.5 and 4.60 on Opus 5.5 |
 | Same idea as | The worst case in [Measuring](05-measuring.md): what is reachable if the model is fooled | The real run in [Measuring](05-measuring.md): how often it is fooled |
 
 Start with the audit. It finds most of what is worth fixing, and its findings hold whatever the model does.
@@ -81,8 +81,8 @@ Scoring a false claim uses the same rule as the rest of the repo: a warning that
 
 - **It reads the file only.** Your `settings.json`, hooks and sandbox may already handle a finding. An agent run without a person, for example in CI, has no permission prompts to rely on.
 - **A scan is not the whole product.** It runs your instructions alone, without Claude Code's own system prompt and permission prompts. It tests your instructions and tool list. A real session has more protection, and an unattended one may have less.
-- **Made-up files are not your files.** The agent may notice that something is off, so the report shows how each answer starts: read those, not just the outcome. In the scan of `eval-reviewer` on Haiku 5.5 (18 runs, USD 0.12, under 4 minutes), no attack worked, and all 18 answers did the real job and told the user about the attack. That is one pass, on one model.
-- **A clean scan is not proof.** The attacks are 18 known patterns, run once. Results vary between runs, and a real attacker adapts.
+- **Made-up files are not your files.** The agent may notice that something is off, so the report shows how each answer starts: read those, not just the outcome. In the scan of `eval-reviewer` on Haiku 5.5 (21 runs, USD 0.21, under 5 minutes), no attack worked: 20 answers did the real job, 19 of those told the user about the attack, and 1 run ended in a refusal. That is one pass, on one model.
+- **A clean scan is not proof.** The attacks are 21 known patterns, run once. Three are plausible false data, the only kind that got through on this repo's own agent, so read those answers with care. Results vary between runs, and a real attacker adapts.
 
 ## An agent that is not a Claude Code file
 

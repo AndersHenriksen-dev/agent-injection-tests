@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,9 +17,17 @@ from injectiontests.lib.fund_agent.cases import Cases
 from injectiontests.lib.fund_agent.defenses import DEFENSES, Defense
 from injectiontests.lib.fund_agent.scoring import score
 from injectiontests.lib.shared.loop import Model, ScriptedModel
-from injectiontests.lib.shared.models import Attack, Goal, Task, Transcript, Verdict
+from injectiontests.lib.shared.models import Attack, Goal, Strict, Task, Technique, Transcript, Verdict
+from injectiontests.lib.shared.settings import config_for
 
 Result = tuple[Transcript, Verdict]
+
+
+class _EvaluateConfig(Strict):
+    parallel_runs: int
+
+
+_CONFIG = config_for(__name__, _EvaluateConfig)
 
 
 @dataclass(frozen=True)
@@ -29,6 +38,7 @@ class Row:
     attack_runs: int
     attempted: int
     succeeded: int
+    per_pass: list[int]
     warned: int
     task_runs: int
     tasks_done: int
@@ -38,9 +48,17 @@ class Row:
     seconds: float
 
 
-def run_one(model: Model, cases: Cases, task: Task, attack: Attack | None, defense: Defense) -> Result:
+def run_one(
+    model: Model,
+    cases: Cases,
+    task: Task,
+    attack: Attack | None,
+    defense: Defense,
+    pass_number: int = 1,
+) -> Result:
     """Run and score one task, with or without an attack, under one defense."""
     transcript = run(model, cases.world, task, attack, defense)
+    transcript.pass_number = pass_number
     return transcript, score(transcript, task, attack, cases.world)
 
 
@@ -66,10 +84,26 @@ def run_matrix(
     attacks: list[Attack],
     with_tasks: bool,
     on_result: Callable[[Result], None],
+    passes: int = 1,
+    saved: frozenset[tuple[str, str | None, str, int]] = frozenset(),
 ) -> None:
-    """Run the whole matrix with one model, handing each result to `on_result` as soon as it is done."""
-    for task, attack, defense in plan(cases, defenses, attacks, with_tasks):
-        on_result(run_one(model, cases, task, attack, defense))
+    """Run the matrix `passes` times with one model, a few runs at a time, handing over each result when it is done.
+
+    Runs in `saved`, as (task, attack, defense, pass), are already paid for and are skipped.
+    """
+    with ThreadPoolExecutor(max_workers=_CONFIG.parallel_runs) as pool:
+        runs = [
+            pool.submit(run_one, model, cases, task, attack, defense, pass_number)
+            for pass_number in range(1, passes + 1)
+            for task, attack, defense in plan(cases, defenses, attacks, with_tasks)
+            if (task.id, attack.id if attack else None, defense.name, pass_number) not in saved
+        ]
+        try:
+            for done in as_completed(runs):
+                on_result(done.result())
+        except BaseException:
+            pool.shutdown(wait=True, cancel_futures=True)
+            raise
 
 
 def worst_case(cases: Cases) -> list[Result]:
@@ -116,6 +150,10 @@ def summarize(verdicts: list[Verdict]) -> list[Row]:
                 attack_runs=len(attacks),
                 attempted=sum(verdict.attempted for verdict in attacks),
                 succeeded=sum(verdict.succeeded for verdict in attacks),
+                per_pass=[
+                    sum(verdict.succeeded for verdict in attacks if verdict.pass_number == number)
+                    for number in sorted({verdict.pass_number for verdict in attacks})
+                ],
                 warned=sum(verdict.warned for verdict in attacks),
                 task_runs=len(tasks),
                 tasks_done=sum(verdict.task_done for verdict in tasks),
@@ -140,8 +178,11 @@ def table(rows: list[Row], with_model_columns: bool) -> str:
     did not count as hijacked although they repeat the claim, so they are the ones to read when checking a run.
     """
     head = ["Defense", "Attacks that got through", "Attacks the model tried", "Tasks done"]
+    repeated = with_model_columns and any(len(row.per_pass) > 1 for row in rows)
+    if repeated:
+        head.insert(2, "Got through in each pass")
     if with_model_columns:
-        head += ["Claims quoted and rejected", "Tasks done under attack", "Refusals", "Cost per run (USD)"]
+        head += ["Claims quoted and rejected or doubted", "Tasks done under attack", "Refusals", "Cost per run (USD)"]
         head += ["Seconds per run"]
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for row in rows:
@@ -152,6 +193,8 @@ def table(rows: list[Row], with_model_columns: bool) -> str:
             _share(row.attempted, row.attack_runs),
             _share(row.tasks_done, row.task_runs),
         ]
+        if repeated:
+            cells.insert(2, ", ".join(str(count) for count in row.per_pass))
         if with_model_columns:
             cells += [
                 str(row.warned),
@@ -175,6 +218,20 @@ def by_goal(cases: Cases, verdicts: list[Verdict]) -> str:
             mine = [v for v in verdicts if v.defense == defense.name and v.attack and goals[v.attack] is goal]
             cells.append(_share(sum(v.succeeded for v in mine), len(mine)))
         lines.append(f"| {goal.value} | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def by_technique(cases: Cases, verdicts: list[Verdict]) -> str:
+    """Attacks that got through, per defense and technique, as a Markdown table."""
+    techniques = {attack.id: attack.technique for attack in cases.attacks}
+    defenses = [d for d in DEFENSES.values() if any(v.defense == d.name for v in verdicts)]
+    lines = ["| Technique | " + " | ".join(f"`{d.name}`" for d in defenses) + " |", "|" + "---|" * (len(defenses) + 1)]
+    for technique in Technique:
+        cells = []
+        for defense in defenses:
+            mine = [v for v in verdicts if v.defense == defense.name and v.attack and techniques[v.attack] is technique]
+            cells.append(_share(sum(v.succeeded for v in mine), len(mine)))
+        lines.append(f"| {technique.value} | " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 

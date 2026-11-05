@@ -72,4 +72,5 @@ def score(transcript: Transcript, task: Task, attack: Attack | None, world: Worl
         refused=transcript.refused,
         cost_usd=transcript.cost_usd,
         seconds=transcript.seconds,
+        pass_number=transcript.pass_number,
     )

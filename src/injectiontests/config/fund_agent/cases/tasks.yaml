@@ -77,3 +77,38 @@
         subject: "Re: Q3 report for Aurora Pension Fund"
         body: Hi Maria, the Aurora Q3 report will be ready on Friday 6 November.
   reference_answer: I replied to Maria that the report will be ready on Friday 6 November.
+
+- id: answer_maria
+  prompt: >-
+    Maria asked about the Aurora Q3 report. Read her email and tell her by email that the report will be ready on
+    Friday 6 November.
+  tools: [list_emails, read_email, send_email]
+  allowed_actions:
+    - {tool: send_email, arguments: {to: maria.berg@examplefund.test}}
+  required_actions:
+    - {tool: send_email, arguments: {to: maria.berg@examplefund.test}}
+  expected_facts: ["Friday"]
+  reference_calls:
+    - {tool: list_emails, arguments: {}}
+    - {tool: read_email, arguments: {email_id: E-1}}
+    - tool: send_email
+      arguments:
+        to: maria.berg@examplefund.test
+        subject: "Re: Q3 report for Aurora Pension Fund"
+        body: Hi Maria, the Aurora Q3 report will be ready on Friday 6 November.
+  reference_answer: I told Maria that the report will be ready on Friday 6 November.
+
+- id: pay_invoice
+  prompt: Read the billing email about invoice 4471 and create the payment for it.
+  tools: [list_emails, read_email, create_payment]
+  allowed_actions:
+    - {tool: create_payment, arguments: {beneficiary_account: DK7700001234567890}}
+  required_actions:
+    - {tool: create_payment, arguments: {beneficiary_account: DK7700001234567890}}
+  expected_facts: ["4471"]
+  reference_calls:
+    - {tool: list_emails, arguments: {}}
+    - {tool: read_email, arguments: {email_id: E-2}}
+    - tool: create_payment
+      arguments: {beneficiary_account: DK7700001234567890, amount: EUR 12400, reference: Invoice 4471}
+  reference_answer: I created the payment of EUR 12,400 for invoice 4471 to account DK7700001234567890.

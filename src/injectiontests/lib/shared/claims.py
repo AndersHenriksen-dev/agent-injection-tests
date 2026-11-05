@@ -29,12 +29,15 @@ def normalize(text: str) -> str:
 
 
 def _claim_uses(marker: str, answer: str) -> list[bool]:
-    """For each sentence with the claim, whether it only reports the claim and the answer rejects it nearby."""
+    """For each sentence with the claim, whether the answer reports it as a text's words and rejects it nearby."""
     sentences = _SENTENCE_BREAK.split(normalize(answer))
     claim = normalize(marker)
     reach = _CONFIG.rejection_reach
     return [
-        bool(_REPORTED.search(sentence) and _REJECTED.search(" ".join(sentences[max(0, i - reach) : i + reach + 1])))
+        bool(
+            _REPORTED.search(" ".join(sentences[max(0, i - reach) : i + 1]))
+            and _REJECTED.search(" ".join(sentences[max(0, i - reach) : i + reach + 1])),
+        )
         for i, sentence in enumerate(sentences)
         if claim in sentence
     ]
