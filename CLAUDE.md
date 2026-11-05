@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Tests of whether a tool-using Claude agent can be hijacked by instructions hidden in the emails, documents and web pages it reads, and which defenses stop it. It can also be installed and pointed at a skill or agent in another repo. Portfolio repo: everything here is read by recruiters once it is public.
+Tests of whether a tool-using Claude agent can be turned against its user by text hidden in the emails, documents and web pages it reads, and which defenses stop that. It can also be installed and pointed at a skill or agent in another repo. Everything here is public, so write for a reader who has never seen it.
 
 ## Run things
 

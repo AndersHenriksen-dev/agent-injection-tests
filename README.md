@@ -1,5 +1,7 @@
 # Agent injection tests
 
+[![CI](https://github.com/AndersHenriksen-dev/agent-injection-tests/actions/workflows/ci.yml/badge.svg)](https://github.com/AndersHenriksen-dev/agent-injection-tests/actions/workflows/ci.yml)
+
 I built a test suite that checks whether a tool-using Claude agent can be turned against its user by text hidden in the emails, documents and web pages it reads, and which defenses stop that. The agent works for a made-up fund administrator: it reads an inbox, client records and web pages, and it can send email, create payments and file tickets. 31 attacks try to make it leak client accounts, call attacker sites, pay attacker accounts or tell the employee something false.
 
 You can also point it at your own Claude Code skills and agents: see [Test your own skill or agent](#test-your-own-skill-or-agent).
